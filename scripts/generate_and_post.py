@@ -24,6 +24,7 @@ COMPOSIO_API_KEY = os.environ["COMPOSIO_API_KEY"]
 IG_USER_ID = "30053245364263763"
 ACCOUNT_ID = "ca_2o8RlJANXuJd"   # xBetterEverydayx Instagram connected account
 SESSION_TYPE = sys.argv[1] if len(sys.argv) > 1 else "morning"   # morning | evening
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.jpeg")
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 USED_FILE = os.path.join(DATA_DIR, f"used_quotes_{SESSION_TYPE}.txt")
 
@@ -39,7 +40,7 @@ def quality_check(img: Image.Image, quote_lines: list[str]) -> bool:
         print("QC FAIL: image is all white"); return False
     if not any(line.strip() for line in quote_lines):
         print("QC FAIL: no quote text"); return False
-    print("QC PASS \u2713"); return True
+    print("QC PASS ✓"); return True
 
 # ── Used quotes ───────────────────────────────────────────────────────────────
 def load_used(path: str) -> set[str]:
@@ -138,7 +139,8 @@ def composio_execute(tool: str, params: dict) -> dict:
     return r.json()
 
 def upload_image(path: str) -> str:
-    """Upload image to Composio S3 and return s3key."""
+    """Upload image; return Composio s3key or public URL as fallback."""
+    # Try Composio S3 upload
     with open(path, "rb") as f:
         r = requests.post(
             f"{COMPOSIO_BASE}/files/upload",
@@ -146,18 +148,41 @@ def upload_image(path: str) -> str:
             files={"file": ("quote.png", f, "image/png")},
             timeout=60,
         )
-    if not r.ok:
-        print(f"Upload error {r.status_code}: {r.text[:500]}")
-    r.raise_for_status()
-    data = r.json()
-    return data.get("s3key") or data.get("key") or data["data"]["s3key"]
+    print(f"Composio upload: status={r.status_code}, body={r.text[:300]!r}")
+    if r.ok and r.text.strip():
+        try:
+            data = r.json()
+            key = (data.get("s3key") or data.get("key") or data.get("fileKey")
+                   or (data.get("data") or {}).get("s3key")
+                   or (data.get("data") or {}).get("key"))
+            if key:
+                print(f"Composio s3key: {key}")
+                return key
+        except Exception as exc:
+            print(f"JSON parse error: {exc}")
+            # Maybe response is a plain-text key
+            candidate = r.text.strip()
+            if "/" in candidate and len(candidate) < 200:
+                return candidate
+    elif r.ok:
+        print("Composio upload returned empty body — falling back to 0x0.st")
+    else:
+        print(f"Composio upload failed ({r.status_code}) — falling back to 0x0.st")
+
+    # Fallback: public image host (0x0.st, no account needed)
+    with open(path, "rb") as f:
+        r2 = requests.post("https://0x0.st", files={"file": ("quote.png", f, "image/png")}, timeout=60)
+    r2.raise_for_status()
+    url = r2.text.strip()
+    print(f"Fallback URL: {url}")
+    return url
 
 # ── Quote generators ──────────────────────────────────────────────────────────
 def generate_morning_quote(weekday: int) -> tuple[list, str, str, int]:
     """Returns (lines, caption, quote_text, style)
     style 1=standard, 4=variable
-    Weekday: 0=Mon \u2026 6=Sun"""
-    if weekday in (0, 3):   # Mon, Thu \u2014 manifesto
+    Weekday: 0=Mon … 6=Sun"""
+    if weekday in (0, 3):   # Mon, Thu — manifesto
         lines = [
             "DO THE WORK", "OTHERS WON'T.",
             "", "SHOW UP", "WHEN IT'S HARD.",
@@ -165,23 +190,23 @@ def generate_morning_quote(weekday: int) -> tuple[list, str, str, int]:
         ]
         caption = "Nobody claps for the 5 AM alarm, the lonely reps, or the days nobody sees. But those are exactly the days that build you.\n\nSave this. Read it again tomorrow."
         return lines, caption, " ".join(l for l in lines if l), 1
-    elif weekday in (1, 4):  # Tue, Fri \u2014 variable
+    elif weekday in (1, 4):  # Tue, Fri — variable
         lines = [("WINNERS", 62), ("NEVER", 100), ("QUIT.", 140),
                  ("AND", 38), ("QUITTERS", 62), ("NEVER", 100), ("WIN.", 140)]
         caption = "The gap between where you are and where you want to be is called discipline. Fill it every single day.\n\nSave this. Read it again tomorrow."
         return lines, caption, "WINNERS NEVER QUIT AND QUITTERS NEVER WIN", 4
-    else:                    # Wed, Sat, Sun \u2014 raw/cinematic
+    else:                    # Wed, Sat, Sun — raw/cinematic
         lines = ["YOU DIDN'T COME", "THIS FAR", "TO ONLY", "COME THIS FAR."]
         caption = "Every morning you wake up is another shot. Don't waste it on small thinking and comfort zones.\n\nSave this. Read it again tomorrow."
         return lines, caption, " ".join(lines), 1
 
 def generate_evening_quote(weekday: int) -> tuple[list, str, str, int]:
-    if weekday in (0, 3):   # Mon, Thu \u2014 cinematic/variable
+    if weekday in (0, 3):   # Mon, Thu — cinematic/variable
         lines = [("TODAY", 62), ("WAS", 38), ("ENOUGH.", 140),
                  ("TOMORROW", 62), ("DO", 38), ("MORE.", 140)]
-        caption = "You don't have to crush every day. Some days you just survive \u2014 and that still counts.\n\nSave this. Read it again tomorrow."
+        caption = "You don't have to crush every day. Some days you just survive — and that still counts.\n\nSave this. Read it again tomorrow."
         return lines, caption, "TODAY WAS ENOUGH. TOMORROW DO MORE.", 4
-    elif weekday in (1, 4):  # Tue, Fri \u2014 manifesto
+    elif weekday in (1, 4):  # Tue, Fri — manifesto
         lines = [
             "WHO YOU WERE", "YESTERDAY",
             "", "IS NOT", "WHO YOU'LL BE",
@@ -189,9 +214,9 @@ def generate_evening_quote(weekday: int) -> tuple[list, str, str, int]:
         ]
         caption = "Growth is uncomfortable. That discomfort you felt today? That's the sound of you becoming better.\n\nSave this. Read it again tomorrow."
         return lines, caption, " ".join(l for l in lines if l), 1
-    else:                    # Wed, Sat, Sun \u2014 raw
+    else:                    # Wed, Sat, Sun — raw
         lines = ["You earned the rest.", "", "Now recover.", "Tomorrow, we go again."]
-        caption = "Rest isn't weakness. It's strategy. The best athletes in the world know when to stop \u2014 so they can go harder tomorrow.\n\nSave this. Read it again tomorrow."
+        caption = "Rest isn't weakness. It's strategy. The best athletes in the world know when to stop — so they can go harder tomorrow.\n\nSave this. Read it again tomorrow."
         return lines, caption, " ".join(l for l in lines if l), 1
 
 HASHTAGS = (
@@ -211,7 +236,7 @@ def main():
         lines, caption_body, quote_text, style = generate_evening_quote(weekday)
 
     if quote_text.lower() in used:
-        print(f"\u26a0\ufe0f  Quote already used, skipping: {quote_text[:60]}")
+        print(f"⚠️  Quote already used, skipping: {quote_text[:60]}")
         sys.exit(0)
 
     # Render image
@@ -223,36 +248,41 @@ def main():
     # Quality check
     quote_lines_flat = [t for t, _ in lines] if style == 4 else lines
     if not quality_check(img, quote_lines_flat):
-        print("\u274c Quality check failed \u2014 aborting post")
+        print("❌ Quality check failed — aborting post")
         sys.exit(1)
 
     # Save image
     img_path = f"/tmp/xbettereverydayx_{SESSION_TYPE}.png"
     img.save(img_path)
 
-    # Upload to Composio S3
-    print("Uploading image\u2026")
-    s3key = upload_image(img_path)
-    print(f"S3 key: {s3key}")
+    # Upload image (Composio S3 or public URL fallback)
+    print("Uploading image…")
+    img_ref = upload_image(img_path)
+    print(f"Image ref: {img_ref}")
 
     # Create IG container
     caption = f"{caption_body}\n\n{HASHTAGS}"
-    print("Creating Instagram container\u2026")
+    print("Creating Instagram container…")
+    # img_ref is either a Composio s3key or a public URL (fallback)
+    if img_ref.startswith("http"):
+        img_param = {"image_url": img_ref}
+    else:
+        img_param = {"image_file": {"name": "quote.png", "mimetype": "image/png", "s3key": img_ref}}
     res = composio_execute("INSTAGRAM_POST_IG_USER_MEDIA", {
         "ig_user_id": IG_USER_ID,
-        "image_file": {"name": "quote.png", "mimetype": "image/png", "s3key": s3key},
+        **img_param,
         "caption": caption,
     })
     container_id = res["data"]["id"]
     print(f"Container: {container_id}")
 
     # Publish
-    print("Publishing\u2026")
+    print("Publishing…")
     composio_execute("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH", {
         "ig_user_id": IG_USER_ID,
         "creation_id": container_id,
     })
-    print("\u2705 Posted successfully!")
+    print("✅ Posted successfully!")
 
     # Save used quote
     save_used(USED_FILE, quote_text)
