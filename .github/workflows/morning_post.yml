@@ -1,0 +1,39 @@
+name: Morning Post — 06:00 CET
+
+on:
+  schedule:
+    # 05:00 UTC = 06:00 CET (winter) / adjust to 04:00 UTC for CEST (summer)
+    - cron: "0 5 * * *"
+  workflow_dispatch:   # allow manual trigger for testing
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit used_quotes updates
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pillow numpy requests
+
+      - name: Generate & post morning quote
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: python scripts/generate_and_post.py morning
+
+      - name: Commit updated used_quotes
+        run: |
+          git config user.name "xBetterEverydayx Bot"
+          git config user.email "lythejendomsservice@gmail.com"
+          git add data/used_quotes_morning.txt || true
+          git diff --staged --quiet || git commit -m "chore: update morning used quotes [$(date +%F)]"
+          git push || true
