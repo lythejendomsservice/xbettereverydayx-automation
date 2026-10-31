@@ -1,0 +1,39 @@
+name: Evening Post — 19:30 CET
+
+on:
+  schedule:
+    # 18:30 UTC = 19:30 CET (winter) / adjust to 17:30 UTC for CEST (summer)
+    - cron: "30 18 * * *"
+  workflow_dispatch:   # allow manual trigger for testing
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pillow numpy requests
+
+      - name: Generate & post evening quote
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: python scripts/generate_and_post.py evening
+
+      - name: Commit updated used_quotes
+        run: |
+          git config user.name "xBetterEverydayx Bot"
+          git config user.email "lythejendomsservice@gmail.com"
+          git add data/used_quotes_evening.txt || true
+          git diff --staged --quiet || git commit -m "chore: update evening used quotes [$(date +%F)]"
+          git push || true
