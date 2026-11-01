@@ -465,7 +465,7 @@ def _upload_litterbox(path: str) -> str:
     with open(path, "rb") as f:
         r = requests.post(
             "https://litterbox.catbox.moe/resources/internals/api.php",
-            data={"reqtype: "fileupload", "time": "72h"},
+            data={"reqtype": "fileupload", "time": "72h"},
             files={"fileToUpload": ("quote.png", f, "image/png")},
             timeout=60,
         )
