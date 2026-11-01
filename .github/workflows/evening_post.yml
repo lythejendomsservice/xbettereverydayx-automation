@@ -26,9 +26,10 @@ jobs:
           pip install pillow numpy requests
 
       - name: Generate & post evening quote
-        env:
-          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
-        run: python scripts/generate_and_post.py evening
+            env:
+      COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+    run: python scripts/generate_and_post.py evening
 
       - name: Commit updated used_quotes
         run: |
