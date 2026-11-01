@@ -397,25 +397,30 @@ def pick_quote(pool: list[tuple], used: set[str]) -> tuple:
     return pool[0]
 
 # ââ Composio REST helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââ
-COMPOSIO_BASE = "https://backend.composio.dev/api/v3"
+COMPOSIO_BASE = "https://backend.composio.dev/api/v3.1"
 HEADERS = {"x-api-key": COMPOSIO_API_KEY, "Content-Type": "application/json"}
 
 def composio_execute(tool: str, params: dict) -> dict:
     payload = {
-        "connectedAccountId": ACCOUNT_ID,
-        "input": params,
+        "connected_account_id": ACCOUNT_ID,
+        "arguments": params,
     }
     r = requests.post(
-        f"{COMPOSIO_BASE}/actions/{tool}/execute",
+        f"{COMPOSIO_BASE}/tools/execute/{tool}",
         json=payload,
         headers=HEADERS,
         timeout=60,
     )
+    print(f"Composio {tool}: status={r.status_code}, body={r.text[:500]!r}")
     if not r.ok:
         print(f"API error {r.status_code}: {r.text[:500]}")
-    r.raise_for_status()
-    return r.json()
-
+        r.raise_for_status()
+    if not r.text.strip():
+        raise RuntimeError(f"Composio returned empty body for {tool} (status={r.status_code})")
+    result = r.json()
+    if not result.get("successful", True):
+        raise RuntimeError(f"Composio {tool} failed: {result.get('error')}")
+    return result
 # ── Image upload – GitHub repo as CDN (GITHUB_TOKEN available in Actions) ────────
 REPO = "lythejendomsservice/xbettereverydayx-automation"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
