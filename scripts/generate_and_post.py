@@ -416,11 +416,14 @@ def composio_execute(tool: str, params: dict) -> dict:
     r.raise_for_status()
     return r.json()
 
-# ── Image upload – multiple hosts with automatic fallback ─────────────────────
+# ── Image upload – GitHub repo as CDN (GITHUB_TOKEN available in Actions) ────────
+REPO = "lythejendomsservice/xbettereverydayx-automation"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
 def upload_image(path: str) -> str:
-    """Upload image to a public host; return public URL for Instagram."""
+    """Upload image; try GitHub repo first (always works in Actions), then fallbacks."""
     hosts = [
-        ("transfer.sh",  _upload_transfer_sh),
+        ("github",       _upload_github),
         ("catbox.moe",   _upload_catbox),
         ("litterbox",    _upload_litterbox),
         ("file.io",      _upload_fileio),
@@ -436,20 +439,36 @@ def upload_image(path: str) -> str:
             print(f"Upload via {name} failed: {exc}")
     raise RuntimeError("All image upload hosts failed – cannot post.")
 
-def _upload_transfer_sh(path: str) -> str:
-    """Upload to transfer.sh via PUT (works well from CI environments)."""
+def _upload_github(path: str) -> str:
+    """Upload image to repo tmp_img/ and return raw.githubusercontent.com URL."""
+    import base64
+    import datetime
+
+    if not GITHUB_TOKEN:
+        raise RuntimeError("GITHUB_TOKEN not set")
+
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    fname = f"post_{SESSION_TYPE}_{ts}.png"
+    repo_path = f"tmp_img/{fname}"
+
     with open(path, "rb") as f:
-        r = requests.put(
-            "https://transfer.sh/xbettereverydayx.png",
-            data=f,
-            headers={"Max-Days": "7"},
-            timeout=60,
-        )
+        content_b64 = base64.b64encode(f.read()).decode()
+
+    r = requests.put(
+        f"https://api.github.com/repos/{REPO}/contents/{repo_path}",
+        headers=headers,
+        json={"message": f"tmp: upload {fname}", "content": content_b64},
+        timeout=60,
+    )
     r.raise_for_status()
-    url = r.text.strip()
-    if not url.startswith("http"):
-        raise ValueError(f"Unexpected transfer.sh response: {url!r}")
-    return url
+    # raw.githubusercontent.com is publicly accessible for public repos
+    return f"https://raw.githubusercontent.com/{REPO}/main/{repo_path}"
 
 def _upload_catbox(path: str) -> str:
     with open(path, "rb") as f:
@@ -480,7 +499,6 @@ def _upload_litterbox(path: str) -> str:
     return url
 
 def _upload_fileio(path: str) -> str:
-    """Upload to file.io (14-day retention, works from CI)."""
     with open(path, "rb") as f:
         r = requests.post(
             "https://file.io",
