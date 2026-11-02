@@ -1,0 +1,28 @@
+name: Render check (never publishes)
+
+# Renders the 7-day test content with the brand renderer and runs all quality
+# checks. Publishing happens ONLY from the scheduled Claude tasks, never here,
+# so this workflow can never create a duplicate Instagram post.
+on:
+  push:
+    paths:
+      - "scripts/**"
+      - "assets/**"
+      - "content/**"
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Render + QC all test posts
+        run: python scripts/render_test_week.py previews
+      - uses: actions/upload-artifact@v4
+        with:
+          name: previews
+          path: previews

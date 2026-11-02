@@ -1,0 +1,136 @@
+[
+  {
+    "day": 1,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Nobody remembers the days you *almost* started."},
+        {"text": "Plans feel like progress. They aren't. The life you keep describing begins the day you stop describing it."},
+        {"text": "Pick one task. *Finish it before noon.*"}
+      ],
+      "caption": "Nobody remembers the days you almost started.\n\nPlanning is comfortable because it never fails. Doing is uncomfortable because it might. That's exactly why it works.\n\nWhat's the one task you'll finish before noon today?",
+      "hashtags": ["#discipline", "#procrastination", "#takeaction", "#selfimprovement", "#productivity", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "Stop shrinking yourself to stay *comfortable* in rooms you have already outgrown."}],
+      "caption": "Stop shrinking yourself to stay comfortable in rooms you have already outgrown.\n\nGrowth sometimes looks like leaving. Not angry. Not loud. Just done.\n\nWhat room have you outgrown?",
+      "hashtags": ["#selfrespect", "#personalgrowth", "#mindset", "#boundaries", "#growthmindset", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 2,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Your phone gets your best hours. *Your goals get the leftovers.*"},
+        {"text": "You don't lack time. You give it away in thirty-second pieces and then wonder where the day went."},
+        {"text": "First hour today: *phone in another room.*"}
+      ],
+      "caption": "Your phone gets your best hours. Your goals get the leftovers.\n\nThe first hour of the day sets the tone for the rest of it. Give it to the work that matters, not the feed.\n\nCould you do one full hour without your phone today?",
+      "hashtags": ["#focus", "#discipline", "#timemanagement", "#morningroutine", "#deepwork", "#selfimprovement", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "Loyalty is cheap when it costs nothing. Watch who stays when it *costs something.*"}],
+      "caption": "Loyalty is cheap when it costs nothing. Watch who stays when it costs something.\n\nEasy days show you who's around. Hard days show you who's real.\n\nWho stayed when it cost them something?",
+      "hashtags": ["#loyalty", "#realfriends", "#relationships", "#lifelessons", "#selfrespect", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 3,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Motivation is a guest. *Discipline lives here.*"},
+        {"text": "Guests come and go when they please. If your progress depends on how you feel, your progress will always be a mood."},
+        {"text": "Do it tired. Do it bored. *Do it anyway.*"}
+      ],
+      "caption": "Motivation is a guest. Discipline lives here.\n\nYou won't feel like it most days. That's normal. The people you admire just stopped asking their feelings for permission.\n\nWhat will you do today even if you don't feel like it?",
+      "hashtags": ["#discipline", "#motivation", "#consistency", "#mentalstrength", "#habits", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "Every promise you break to yourself teaches you that *your word means nothing.*"}],
+      "caption": "Every promise you break to yourself teaches you that your word means nothing.\n\nSelf-respect isn't a feeling. It's a track record. Start rebuilding it with one small promise tomorrow.\n\nWhat promise will you keep tomorrow?",
+      "hashtags": ["#selfrespect", "#accountability", "#discipline", "#selfdiscipline", "#character", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 4,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Every excuse sounds smart *to the person making it.*"},
+        {"text": "Too busy, too tired, not the right time. They sound reasonable because you wrote every one of them yourself."},
+        {"text": "Catch one excuse today. *Then do the thing anyway.*"}
+      ],
+      "caption": "Every excuse sounds smart to the person making it.\n\nThe goal isn't to never have excuses. It's to notice them and stop obeying them.\n\nWhich excuse do you hear most often?",
+      "hashtags": ["#noexcuses", "#accountability", "#mindset", "#selfimprovement", "#ownership", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "Peace is not found when people change. It is built when you *stop waiting* for them to."}],
+      "caption": "Peace is not found when people change. It is built when you stop waiting for them to.\n\nYou can't control them. You can control how much space they take up in your head.\n\nWho are you still waiting on?",
+      "hashtags": ["#innerpeace", "#boundaries", "#letgo", "#emotionalgrowth", "#mindset", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 5,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Small promises kept *build big lives.*"},
+        {"text": "You don't need a new life plan. You need to stop breaking the small promises you make to yourself every morning."},
+        {"text": "Make one promise today. *Keep it before bed.*"}
+      ],
+      "caption": "Small promises kept build big lives.\n\nTen push-ups. One page. One honest conversation. Small enough to keep, big enough to matter.\n\nWhat's your one promise for today?",
+      "hashtags": ["#habits", "#consistency", "#selfdiscipline", "#atomichabits", "#personalgrowth", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "If they only call when they need something, *you are not a friend.* You are a service.", "style": "sans"}],
+      "caption": "If they only call when they need something, you are not a friend. You are a service.\n\nBe generous. Just don't confuse being used with being valued.\n\nHave you ever been someone's service?",
+      "hashtags": ["#relationships", "#selfworth", "#boundaries", "#realtalk", "#lifelessons", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 6,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Comfort is the most expensive thing *you'll ever buy.*"},
+        {"text": "It costs nothing today. It charges interest every year you choose it over the work that scares you."},
+        {"text": "Do the uncomfortable thing *first.* Everything else can wait."}
+      ],
+      "caption": "Comfort is the most expensive thing you'll ever buy.\n\nThe bill doesn't come today. It comes in five years, when you're still in the same place.\n\nWhat's the uncomfortable thing you'll do first today?",
+      "hashtags": ["#comfortzone", "#growthmindset", "#discipline", "#ambition", "#selfimprovement", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "theme": "light",
+      "slides": [{"text": "The hardest goodbye is to the person you were *comfortable being.*"}],
+      "caption": "The hardest goodbye is to the person you were comfortable being.\n\nYou can love who you were and still refuse to stay there.\n\nWhat old version of you are you letting go of?",
+      "hashtags": ["#personalgrowth", "#selfdevelopment", "#change", "#mindset", "#growth", "#xbettereverydayx"]
+    }
+  },
+  {
+    "day": 7,
+    "morning": {
+      "type": "morning",
+      "slides": [
+        {"text": "Your future self is *built from boring days.*"},
+        {"text": "Nobody posts the early mornings, the reps, the pages, the money saved. But that's where every result you admire comes from."},
+        {"text": "Win today's boring work. *That's the whole secret.*"}
+      ],
+      "caption": "Your future self is built from boring days.\n\nNo highlight reel. No applause. Just the same good decisions, repeated until they add up.\n\nWhat boring work will you win today?",
+      "hashtags": ["#consistency", "#discipline", "#longgame", "#selfimprovement", "#hardwork", "#xbettereverydayx"]
+    },
+    "evening": {
+      "type": "evening",
+      "slides": [{"text": "Your comfort zone isn't protecting you. It's quietly *charging you rent.*"}],
+      "caption": "Your comfort zone isn't protecting you. It's quietly charging you rent.\n\nEvery year you stay, you pay in time, confidence and chances you'll never get back.\n\nWhat is your comfort zone costing you?",
+      "hashtags": ["#comfortzone", "#reflection", "#personalgrowth", "#mindset", "#realitycheck", "#xbettereverydayx"]
+    }
+  }
+]
