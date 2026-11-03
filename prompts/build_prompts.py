@@ -27,6 +27,7 @@ child_image_files:[{name:"morning_1.jpg",mimetype:"image/jpeg",s3key:<s3key 1>},
 Check INSTAGRAM_GET_POST_STATUS on the returned id until status_code is FINISHED
 (every 5 s, max 20 tries; ERROR -> STOP + PushNotification).""",
         "VERIFY": "It must be media_type CAROUSEL_ALBUM with exactly 3 children; otherwise PushNotification.",
+        "CTA_RULES": "Product promotion: none in morning posts. Never mention products, links or sales.",
     },
     "evening": {
         "SLOT_RULES": """EVENING = ONE single image with ONE original quote of 5-25 words that stands
@@ -41,6 +42,14 @@ character, consistency. Emotional depth, truth, relatability. Default style seri
 alt_text:<the quote without asterisks>, image_file:{name:"evening_1.jpg",
 mimetype:"image/jpeg", s3key:<s3key>}}.""",
         "VERIFY": "It must be media_type IMAGE; otherwise PushNotification.",
+        "CTA_RULES": """Product promotion (Gumroad) - ONLY on Wednesday (weekday 3) and Sunday (weekday 7):
+- Pick the quote topic from relationships, loyalty, betrayal, boundaries or self-respect.
+- Write the caption as usual, then end it with ONE soft, natural line pointing to the digital
+  guide "The Circle Audit" (helps identify who truly supports you, fake loyalty and draining
+  friendships), ending with "Link in bio." Example tone (do not copy verbatim): "Not sure who's
+  really in your corner? The Circle Audit helps you find out. Link in bio."
+- Never a hard sell, never prices, never URLs, never more than one product line.
+On all other days: no product mention at all.""",
     },
 }
 
