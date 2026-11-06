@@ -4,6 +4,7 @@ import os
 
 HERE = os.path.dirname(__file__)
 tpl = open(os.path.join(HERE, "task_template.md")).read()
+tpl = tpl.replace("@@RENDERER@@", open(os.path.join(HERE, "renderer_inline.py")).read().strip())
 
 SLOTS = {
     "morning": {
