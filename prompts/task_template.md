@@ -118,8 +118,7 @@ Only if the Instagram post in step 4 was published in THIS run (if step 1 stoppe
 do nothing here). Use Facebook account "facebook_stoff-riksha" and ONLY page_id
 "1033703049835931" (Page "XBetterEverydayx"). Never post anywhere else - never to a personal
 profile, never to another page.
-FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
-ending in "Link in bio.", remove that whole line for Facebook (the link lives on Instagram).
+{{FB_CAPTION_RULE}}
 {{FB_STEPS}}
 A Facebook failure must NOT undo or repeat the Instagram post. If the Facebook call errors:
 COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_GET_PAGE_POSTS {page_id:"1033703049835931", limit:3};

@@ -28,6 +28,8 @@ child_image_files:[{name:"morning_1.jpg",mimetype:"image/jpeg",s3key:<s3key 1>},
 Check INSTAGRAM_GET_POST_STATUS on the returned id until status_code is FINISHED
 (every 5 s, max 20 tries; ERROR -> STOP + PushNotification).""",
         "VERIFY": "It must be media_type CAROUSEL_ALBUM with exactly 3 children; otherwise PushNotification.",
+        "FB_CAPTION_RULE": """FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
+ending in "Link in bio.", remove that whole line for Facebook (the link lives on Instagram).""",
         "CTA_RULES": "Product promotion: none in morning posts. Never mention products, links or sales.",
         "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_MULTI_PHOTO_POST, account
 "facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
@@ -46,6 +48,10 @@ character, consistency. Emotional depth, truth, relatability. Default style seri
 alt_text:<the quote without asterisks>, image_file:{name:"evening_1.jpg",
 mimetype:"image/jpeg", s3key:<s3key>}}.""",
         "VERIFY": "It must be media_type IMAGE; otherwise PushNotification.",
+        "FB_CAPTION_RULE": """FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
+ending in "Link in bio.", replace "Link in bio." on that line with
+"Get it here: https://xbettereverydayx.gumroad.com/l/wzidk" (links are clickable on Facebook).
+Use exactly that URL - never any other link.""",
         "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_PHOTO_POST, account
 "facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
 published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0]["s3key"]}}.""",

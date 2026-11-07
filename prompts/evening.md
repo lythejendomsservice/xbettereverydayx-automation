@@ -444,7 +444,9 @@ do nothing here). Use Facebook account "facebook_stoff-riksha" and ONLY page_id
 "1033703049835931" (Page "XBetterEverydayx"). Never post anywhere else - never to a personal
 profile, never to another page.
 FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
-ending in "Link in bio.", remove that whole line for Facebook (the link lives on Instagram).
+ending in "Link in bio.", replace "Link in bio." on that line with
+"Get it here: https://xbettereverydayx.gumroad.com/l/wzidk" (links are clickable on Facebook).
+Use exactly that URL - never any other link.
 COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_PHOTO_POST, account
 "facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
 published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0]["s3key"]}}.
