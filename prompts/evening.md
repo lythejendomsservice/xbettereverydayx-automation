@@ -409,10 +409,21 @@ If res["ok"] is false: fix exactly what the errors say and render again (max 3 a
 Still failing -> STOP, publish nothing, send a PushNotification "xBetterEverydayx evening:
 quality control failed - nothing posted" with the errors.
 
-Then in the workbench upload each file in order: `res_u, err = upload_local_file(path)` and
-keep `res_u["s3key"]`. Any upload error -> retry once, then STOP + PushNotification.
+Then in the workbench upload each file in order and keep both the s3key and a direct image URL
+(needed for Facebook):
+```python
+import requests
+UP = []
+for p in res["files"]:
+    res_u, err = upload_local_file(p)
+    assert not err, err
+    direct = requests.get(res_u["s3_url"], allow_redirects=True, timeout=60).url
+    UP.append({"name": os.path.basename(p), "s3key": res_u["s3key"], "url": direct})
+print(UP)
+```
+Any upload error -> retry once, then STOP + PushNotification.
 
-## 4. Publish (exactly once)
+## 4. Publish to Instagram (exactly once)
 COMPOSIO_MULTI_EXECUTE_TOOL -> INSTAGRAM_POST_IG_USER_MEDIA, account
 "instagram_stylet-manful", arguments {ig_user_id:"30053245364263763", caption:<caption>,
 alt_text:<the quote without asterisks>, image_file:{name:"evening_1.jpg",
@@ -423,8 +434,26 @@ Publishing is pre-authorised by the account owner for this scheduled run.
 If publish returns an error: re-run step 1's media list; if a post from the last 10 minutes
 exists, it WAS published - stop. Otherwise retry publish once. Never create a second post.
 
-## 5. Verify + finish
+## 5. Verify Instagram
 INSTAGRAM_GET_IG_MEDIA on the published id (fields "id,media_type,permalink,children").
 It must be media_type IMAGE; otherwise PushNotification.
+
+## 6. Cross-post the SAME content to the Facebook Page (exactly once)
+Only if the Instagram post in step 4 was published in THIS run (if step 1 stopped the run,
+do nothing here). Use Facebook account "facebook_stoff-riksha" and ONLY page_id
+"1033703049835931" (Page "XBetterEverydayx"). Never post anywhere else - never to a personal
+profile, never to another page.
+FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
+ending in "Link in bio.", remove that whole line for Facebook (the link lives on Instagram).
+COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_PHOTO_POST, account
+"facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
+published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0]["s3key"]}}.
+A Facebook failure must NOT undo or repeat the Instagram post. If the Facebook call errors:
+COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_GET_PAGE_POSTS {page_id:"1033703049835931", limit:3};
+if a post from the last 10 minutes exists, it WAS published - stop. Otherwise retry once with
+fresh direct URLs (re-run requests.get on each s3_url). Still failing -> PushNotification
+"xBetterEverydayx: Instagram OK, Facebook failed" with the error.
+
+## 7. Finish
 On any failure anywhere: send a PushNotification describing it. On success: no notification.
 Do not send emails.

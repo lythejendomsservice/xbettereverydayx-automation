@@ -29,6 +29,9 @@ Check INSTAGRAM_GET_POST_STATUS on the returned id until status_code is FINISHED
 (every 5 s, max 20 tries; ERROR -> STOP + PushNotification).""",
         "VERIFY": "It must be media_type CAROUSEL_ALBUM with exactly 3 children; otherwise PushNotification.",
         "CTA_RULES": "Product promotion: none in morning posts. Never mention products, links or sales.",
+        "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_MULTI_PHOTO_POST, account
+"facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
+photo_urls:[UP[0]["url"], UP[1]["url"], UP[2]["url"]]} - exactly the 3 slides in order.""",
     },
     "evening": {
         "SLOT_RULES": """EVENING = ONE single image with ONE original quote of 5-25 words that stands
@@ -43,6 +46,9 @@ character, consistency. Emotional depth, truth, relatability. Default style seri
 alt_text:<the quote without asterisks>, image_file:{name:"evening_1.jpg",
 mimetype:"image/jpeg", s3key:<s3key>}}.""",
         "VERIFY": "It must be media_type IMAGE; otherwise PushNotification.",
+        "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_PHOTO_POST, account
+"facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
+published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0]["s3key"]}}.""",
         "CTA_RULES": """Product promotion (Gumroad) - ONLY on Wednesday (weekday 3) and Sunday (weekday 7):
 - Pick the quote topic from relationships, loyalty, betrayal, boundaries or self-respect.
 - Write the caption as usual, then end it with ONE soft, natural line pointing to the digital
