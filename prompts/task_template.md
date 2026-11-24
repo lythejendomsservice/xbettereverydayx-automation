@@ -12,11 +12,18 @@ post", session generate_id true) and pass that session_id to every later Composi
 Instagram account: "instagram_stylet-manful", ig_user_id "30053245364263763".
 
 ## 1. Double-post guard + history
+Run `TZ=Europe/Copenhagen date "+%F %H:%M %u"` in Bash: today's date, the time now and the
+weekday (1=Mon ... 7=Sun), all in Copenhagen time.
+- LATE RUN: the morning slot is scheduled for 06:00 and the evening slot for 19:30 Copenhagen time.
+  If it is now more than 2 hours after THIS slot's time (a delayed or "catch-up" run): STOP.
+  Publish nothing. Send a PushNotification "xBetterEverydayx <slot>: started too late (<time>) -
+  nothing posted". A missed post is better than a post in the wrong slot.
 COMPOSIO_MULTI_EXECUTE_TOOL -> INSTAGRAM_GET_IG_USER_MEDIA {ig_user_id:"me", limit:100,
 fields:"id,caption,timestamp,like_count,comments_count"}.
-- If ANY post has a timestamp within the last 3 hours: STOP. Publish nothing. (Already posted.)
+- ALREADY POSTED: if ANY post has a timestamp within the last 3 hours, or a post of THIS slot
+  already exists today (Copenhagen date - morning posts are published before 12:00, evening posts
+  after 15:00 Copenhagen time): STOP. Publish nothing.
 - Keep all captions; they are the originality history.
-- Run `TZ=Europe/Copenhagen date +%u` in Bash to get today's weekday (1=Mon ... 7=Sun).
 
 ## 2. Write today's content (English)
 Mission: help people become the best version of themselves through discipline, consistency,
