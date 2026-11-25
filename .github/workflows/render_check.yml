@@ -9,6 +9,7 @@ on:
       - "scripts/**"
       - "assets/**"
       - "content/**"
+      - "prompts/**"
   workflow_dispatch:
 
 jobs:
@@ -22,6 +23,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Render + QC all test posts
         run: python scripts/render_test_week.py previews
+      - name: Pipeline tests (offline, fake Instagram/Facebook)
+        run: python scripts/test_pipeline.py
       - uses: actions/upload-artifact@v4
         with:
           name: previews

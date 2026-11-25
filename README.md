@@ -8,15 +8,21 @@ Two posts a day on @xbettereverydayx:
 | Structure | Hook → Message → Action | One original quote |
 | Goal | Action | Reflection |
 
-## How it works
+## How it works (v2, 26/11-2026)
 
-1. **Two scheduled Claude tasks** (in claude.ai) write the day's text, caption and hashtags.
-   They are the only thing that publishes.
-2. They download this repo inside the Composio workbench and call
-   `scripts/xbe_render.py`, which renders 1080×1350 JPEGs from the approved brand
-   assets and runs quality control.
-3. Only if QC passes are the images uploaded and published via Composio.
-   Nothing is published if any step fails.
+1. **Two scheduled Claude tasks** (claude.ai) write the day's text, caption and hashtags. The prompts are
+   built from `prompts/task_template.md` with `python prompts/build_prompts.py <commit>`.
+2. In the Composio workbench the task loads `prompts/renderer_inline.py` and `scripts/xbe_pipeline.py` from
+   this repo **at a pinned commit, checked by SHA-256**, and calls two functions:
+   - `prepare(slot)` - double-post guard + the last 30 posts (short form) for theme and performance choices;
+   - `publish(content, slot)` - guard again, render + quality control, upload, Instagram, verify, Facebook.
+3. The safety rules are code, not the model's judgement: publish only in the slot window (morning
+   06:00-08:00, evening 19:30-21:30 Copenhagen time), never if the slot already has a post today or anything
+   went out in the last 3 hours, never if QC fails, exactly one publish call with a checked retry, Facebook
+   only after a verified Instagram post, and `dry_run=True` never writes to Instagram or Facebook.
+
+v1 (until 25/11-2026) copied the whole renderer into every run and drove ~18 tool calls; it is kept in
+`prompts/archive/` for rollback.
 
 ## Brand rules enforced in code (`scripts/xbe_render.py`)
 
@@ -35,16 +41,17 @@ Rejects: wrong slide count, word counts outside the spec, non-English characters
 repeated words, slides repeating each other, 5–10 hashtag rule, caption limits,
 text too similar to anything already published on the profile or to well-known
 quotes, watermark size/opacity/proportions outside spec, text outside safe
-margins, too-small text, low contrast. The tasks also stop if anything was
-published in the last 3 hours (double-post guard).
+margins, too-small text, low contrast. The double-post guard is in
+`scripts/xbe_pipeline.py` (see "How it works").
 
 ## Testing
 
 ```
 pip install -r requirements.txt
-python scripts/render_test_week.py previews
+python scripts/render_test_week.py previews   # brand renderer + QC
+python scripts/test_pipeline.py               # pipeline with fake Instagram/Facebook - nothing is posted
 ```
 
-The GitHub workflow `render_check.yml` does the same on every change. It never publishes.
+The GitHub workflow `render_check.yml` runs both on every change. It never publishes.
 
 `legacy/` holds the old GitHub Actions poster (it never managed to post) for reference.

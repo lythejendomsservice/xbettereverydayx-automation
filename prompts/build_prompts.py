@@ -1,10 +1,35 @@
-"""Builds the final scheduled-task prompts (prompts/morning.md, prompts/evening.md)
-from task_template.md so both tasks share one set of rules."""
-import os
+"""Builds the scheduled-task prompts (prompts/morning.md, prompts/evening.md) from task_template.md,
+so both tasks share one set of rules.
 
-HERE = os.path.dirname(__file__)
-tpl = open(os.path.join(HERE, "task_template.md")).read()
-tpl = tpl.replace("@@RENDERER@@", open(os.path.join(HERE, "renderer_inline.py")).read().strip())
+v2 (26/11-2026): the renderer and the publishing steps are no longer copied into the prompt. The task loads
+prompts/renderer_inline.py and scripts/xbe_pipeline.py at a PINNED commit and checks their SHA-256:
+
+    python prompts/build_prompts.py <commit-sha>
+
+The commit must contain exactly the local versions of both files (checked with git). v1 is in prompts/archive/.
+"""
+import hashlib
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+PINNED = {"H_RENDERER": "prompts/renderer_inline.py", "H_PIPELINE": "scripts/xbe_pipeline.py"}
+
+commit = sys.argv[1] if len(sys.argv) > 1 else subprocess.check_output(
+    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+hashes = {}
+for key, path in PINNED.items():
+    local = open(os.path.join(ROOT, path), "rb").read()
+    committed = subprocess.check_output(["git", "show", f"{commit}:{path}"], cwd=ROOT)
+    assert local == committed, f"{path} differs from commit {commit} - commit it first"
+    hashes[key] = hashlib.sha256(committed).hexdigest()
+
+boot = open(os.path.join(HERE, "bootstrap.py.tpl")).read().strip().replace("{{COMMIT}}", commit)
+for key, value in hashes.items():
+    boot = boot.replace("{{" + key + "}}", value)
+tpl = open(os.path.join(HERE, "task_template.md")).read().replace("@@BOOTSTRAP@@", boot)
 
 SLOTS = {
     "morning": {
@@ -21,19 +46,8 @@ never the same sentence on two slides.
 Themes: discipline, responsibility, time, ambition, consistency, procrastination, bad habits,
 accountability.""",
         "CAPTION_END": "one natural engagement question about today",
-        "PUBLISH_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> INSTAGRAM_CREATE_CAROUSEL_CONTAINER, account
-"instagram_stylet-manful", arguments {ig_user_id:"30053245364263763", caption:<caption>,
-child_image_files:[{name:"morning_1.jpg",mimetype:"image/jpeg",s3key:<s3key 1>}, ...slide 2,
-...slide 3 in this order]}. Must be exactly 3 children - never publish an incomplete carousel.
-Check INSTAGRAM_GET_POST_STATUS on the returned id until status_code is FINISHED
-(every 5 s, max 20 tries; ERROR -> STOP + PushNotification).""",
-        "VERIFY": "It must be media_type CAROUSEL_ALBUM with exactly 3 children; otherwise PushNotification.",
-        "FB_CAPTION_RULE": """FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
-ending in "Link in bio.", remove that whole line for Facebook (the link lives on Instagram).""",
         "CTA_RULES": "Product promotion: none in morning posts. Never mention products, links or sales.",
-        "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_MULTI_PHOTO_POST, account
-"facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
-photo_urls:[UP[0]["url"], UP[1]["url"], UP[2]["url"]]} - exactly the 3 slides in order.""",
+        "FB_NOTE": "Facebook gets the same text (the code removes a \"Link in bio.\" line, which the morning never has).",
     },
     "evening": {
         "SLOT_RULES": """EVENING = ONE single image with ONE original quote of 5-25 words that stands
@@ -43,18 +57,6 @@ mortality, ambition, comfort zones, life lessons, boundaries, mental strength, a
 character, consistency. Emotional depth, truth, relatability. Default style serif; use
 "style":"sans" only for a hard-hitting, punchy line.""",
         "CAPTION_END": "an invitation to reflect or comment (a question is fine)",
-        "PUBLISH_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> INSTAGRAM_POST_IG_USER_MEDIA, account
-"instagram_stylet-manful", arguments {ig_user_id:"30053245364263763", caption:<caption>,
-alt_text:<the quote without asterisks>, image_file:{name:"evening_1.jpg",
-mimetype:"image/jpeg", s3key:<s3key>}}.""",
-        "VERIFY": "It must be media_type IMAGE; otherwise PushNotification.",
-        "FB_CAPTION_RULE": """FB caption = the same full_caption(CONTENT), except: if the caption contains the product line
-ending in "Link in bio.", replace "Link in bio." on that line with
-"Get it here: https://xbettereverydayx.gumroad.com/l/wzidk" (links are clickable on Facebook).
-Use exactly that URL - never any other link.""",
-        "FB_STEPS": """COMPOSIO_MULTI_EXECUTE_TOOL -> FACEBOOK_CREATE_PHOTO_POST, account
-"facebook_stoff-riksha", arguments {page_id:"1033703049835931", message:<FB caption>,
-published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0]["s3key"]}}.""",
         "CTA_RULES": """Product promotion (Gumroad) - ONLY on Wednesday (weekday 3) and Sunday (weekday 7):
 - Pick the quote topic from relationships, loyalty, betrayal, boundaries or self-respect.
 - Write the caption as usual, then end it with ONE soft, natural line pointing to the digital
@@ -63,6 +65,7 @@ published:true, photo:{name:"evening_1.jpg", mimetype:"image/jpeg", s3key:UP[0][
   really in your corner? The Circle Audit helps you find out. Link in bio."
 - Never a hard sell, never prices, never URLs, never more than one product line.
 On all other days: no product mention at all.""",
+        "FB_NOTE": "Facebook gets the same text, with \"Link in bio.\" turned into the Gumroad link by the code.",
     },
 }
 
