@@ -64,8 +64,8 @@ for India, Asia and Australia. Short and punchy: discipline, standards, action, 
 self-respect, mental strength. Use "style":"sans" (bold uppercase) by default; "serif" only for a
 quieter, reflective line. Never the theme of the last midday carousel or evening quote.
 
-EVENING = ONE single image with ONE original quote of 5-25 words that stands
-alone without explanation. Goal: reflection, recognition, shares and comments.
+EVENING = ONE original quote of 5-25 words that stands alone without explanation,
+posted as a Reel (see below). Goal: reflection, recognition, shares and comments.
 Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipline, time and
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use

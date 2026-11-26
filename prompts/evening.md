@@ -55,8 +55,8 @@ that are just "send me this post" style bot spam). Note which themes and hook st
 About half the time, pick a theme from the top performers (with a fresh angle); the rest of the
 time explore. Never repeat the theme of either of the last 2 posts.
 
-EVENING = ONE single image with ONE original quote of 5-25 words that stands
-alone without explanation. Goal: reflection, recognition, shares and comments.
+EVENING = ONE original quote of 5-25 words that stands alone without explanation,
+posted as a Reel (see below). Goal: reflection, recognition, shares and comments.
 Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipline, time and
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use

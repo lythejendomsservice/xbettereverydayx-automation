@@ -64,8 +64,8 @@ accountability.""",
         "FB_NOTE": "Facebook gets the same text.",
     },
     "evening": {
-        "SLOT_RULES": """EVENING = ONE single image with ONE original quote of 5-25 words that stands
-alone without explanation. Goal: reflection, recognition, shares and comments.
+        "SLOT_RULES": """EVENING = ONE original quote of 5-25 words that stands alone without explanation,
+posted as a Reel (see below). Goal: reflection, recognition, shares and comments.
 Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipline, time and
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use
