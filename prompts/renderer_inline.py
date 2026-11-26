@@ -45,6 +45,8 @@ def _norm(text: str) -> str:
     return re.sub('\\s+', ' ', t).strip()
 
 def _tokens(text: str) -> list[tuple[str, bool]]:
+    text = re.sub("(\\w)\\*([^\\s\\w*]+\\w*)", "\\1\\2*", text)
+    text = re.sub("([^\\s\\w*]+)\\*(\\w)", "*\\1\\2", text)
     out, accent = ([], False)
     for part in re.split('(\\*)', text):
         if part == '*':

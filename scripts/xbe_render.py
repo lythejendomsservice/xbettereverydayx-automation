@@ -134,7 +134,13 @@ def _norm(text: str) -> str:
 
 
 def _tokens(text: str) -> list[tuple[str, bool]]:
-    """Split into (word, is_accent) using *...* markup."""
+    """Split into (word, is_accent) using *...* markup.
+
+    Punctuation glued to an accent stays with its word ("*exits*." draws as "EXITS." - not "EXITS ."),
+    so it can never end up alone on a line (seen 26/11-2026).
+    """
+    text = re.sub(r"(\w)\*([^\s\w*]+\w*)", r"\1\2*", text)
+    text = re.sub(r"([^\s\w*]+)\*(\w)", r"*\1\2", text)
     out, accent = [], False
     for part in re.split(r"(\*)", text):
         if part == "*":

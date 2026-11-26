@@ -109,6 +109,15 @@ check("DST fallback: 29/3 01:00 UTC", off(dt.datetime(2026, 3, 29, 1, 0, tzinfo=
 check("DST fallback: 25/10 01:00 UTC", off(dt.datetime(2026, 10, 25, 1, 0, tzinfo=U)) == 1)
 check("zoneinfo summer +2", ns["to_cph"](dt.datetime(2026, 7, 1, 4, 0, tzinfo=U)).hour == 6)
 
+# ---------------------------------------------------------------- renderer: punctuation after a red word (26/11-2026)
+tok = ns["_tokens"]
+check("tokens: '*exits*.' keeps the period on the word", tok("fewer *exits*.") == [("fewer", False), ("exits.", True)])
+check("tokens: '*Monday*,' keeps the comma", tok("*Monday*, again") == [("Monday,", True), ("again", False)])
+check("tokens: no change without accents", tok("plain text, no accents.") == [("plain", False), ("text,", False),
+                                                                              ("no", False), ("accents.", False)])
+img, info = ns["render_slide"]("You don't need more motivation. You need fewer *exits*.", "hook", None, "dark", 0, 3)
+check("render: no line is only punctuation", all(any(c.isalnum() for c in ln) for ln in info["lines"]), info["lines"])
+
 # ---------------------------------------------------------------- Facebook caption
 fb = ns["fb_caption"]
 check("evening FB: Gumroad link replaces 'Link in bio.'",
