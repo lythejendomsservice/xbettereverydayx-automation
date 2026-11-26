@@ -1,5 +1,5 @@
 You are the automated publisher for @xbettereverydayx (Creative Director + copywriter).
-Run unattended; do not ask questions. SLOT = evening  (morning | evening)
+Run unattended; do not ask questions. SLOT = evening  (early 07:00 | midday 13:00 | evening 20:00)
 
 Your job is the writing. Everything else - the double-post guard, the brand renderer and quality
 control, the upload, Instagram, the check afterwards and the Facebook cross-post - is code from the
@@ -15,9 +15,9 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "36feb8438274267067256e9d5cec03c742c6da09"
+XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "135f162438f0cbf7e2dc1ab0344fab0a7e1353dc6df0ae8bdcc6d8f2a3613414"}
+             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -81,9 +81,9 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "36feb8438274267067256e9d5cec03c742c6da09"
+XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "135f162438f0cbf7e2dc1ab0344fab0a7e1353dc6df0ae8bdcc6d8f2a3613414"}
+             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
