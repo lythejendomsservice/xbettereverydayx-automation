@@ -23,6 +23,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Render + QC all test posts
         run: python scripts/render_test_week.py previews
+      - name: ffmpeg for the Reel render test
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Pipeline tests (offline, fake Instagram/Facebook)
         run: python scripts/test_pipeline.py
       - uses: actions/upload-artifact@v4

@@ -16,7 +16,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-PINNED = {"H_RENDERER": "prompts/renderer_inline.py", "H_PIPELINE": "scripts/xbe_pipeline.py"}
+PINNED = {"H_RENDERER": "prompts/renderer_inline.py", "H_REEL": "scripts/xbe_reel.py",
+          "H_PIPELINE": "scripts/xbe_pipeline.py"}
 
 commit = sys.argv[1] if len(sys.argv) > 1 else subprocess.check_output(
     ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -30,7 +31,7 @@ for key, path in PINNED.items():
 boot = open(os.path.join(HERE, "bootstrap.py.tpl")).read().strip().replace("{{COMMIT}}", commit)
 for key, value in hashes.items():
     boot = boot.replace("{{" + key + "}}", value)
-tpl = open(os.path.join(HERE, "task_template.md")).read().replace("@@BOOTSTRAP@@", boot)
+tpl = open(os.path.join(HERE, "task_template.md")).read()
 
 SLOTS = {
     "early": {
@@ -68,7 +69,9 @@ alone without explanation. Goal: reflection, recognition, shares and comments.
 Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipline, time and
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use
-"style":"sans" only for a hard-hitting, punchy line.""",
+"style":"sans" only for a hard-hitting, punchy line.
+The evening quote is posted as a Reel: the code shows it word by word over original background sound
+(6-13 seconds) and holds it at the end. Write it so it builds to its last words; 8-20 words works best.""",
         "CAPTION_END": 'an invitation to reflect or comment (a question is fine)',
         "CTA_RULES": """Product promotion (Gumroad) - ONLY on Wednesday (weekday 3) and Sunday (weekday 7):
 - Pick the quote topic from relationships, loyalty, betrayal, boundaries or self-respect.
@@ -78,14 +81,33 @@ character, consistency. Emotional depth, truth, relatability. Default style seri
   really in your corner? The Circle Audit helps you find out. Link in bio."
 - Never a hard sell, never prices, never URLs, never more than one product line.
 On all other days: no product mention at all.""",
-        "FB_NOTE": 'Facebook gets the same text, with "Link in bio." turned into the Gumroad link by the code.',
+        "FB_NOTE": 'Facebook gets the Reel as a video with the same text, with "Link in bio." turned into the\n'
+                   'Gumroad link by the code.',
+        "REEL_STEPS": "REEL",
     },
 }
+
+# Reels (Simon 26/11-2026: the 20:00 quote is a Reel). Video takes Instagram 30-120 s to process and a workbench
+# cell may run 180 s at most, so publish() can stop at "processing"/"facebook_pending" and finish() carries on.
+REEL_STEPS = """- stage "processing" or "facebook_pending" (evening Reel only): the Reel is uploaded and Instagram or
+  Facebook needs more time. Run this cell and read its result the same way - repeat while the stage is
+  "processing" or "facebook_pending", at most 4 times; still not done after 4 runs: send a PushNotification
+  "xBetterEverydayx {{SLOT}}: the Reel is not finished after 4 tries (<stage>)" and STOP:
+```python
+@@BOOTSTRAP@@
+{{SLOT_CODE}}
+print(json.dumps(finish(SLOT), indent=1))
+```
+- stage "lost" (from finish): run the publish cell once more - the guard stops it if the Reel is already out.
+"""
 
 
 
 def render(name, slot_label, parts):
-    text = tpl.replace("{{SLOT}}", slot_label)
+    parts = dict(parts)
+    steps = REEL_STEPS if parts.pop("REEL_STEPS", "") == "REEL" else ""
+    text = tpl.replace("{{REEL_STEPS}}", steps).replace("@@BOOTSTRAP@@", boot)
+    text = text.replace("{{SLOT}}", slot_label)
     for k, v in parts.items():
         text = text.replace("{{" + k + "}}", v)
     assert "{{" not in text, f"unfilled placeholder in {name}"
@@ -114,5 +136,7 @@ render("quote", "<slot>", {
     "CAPTION_END": "one short question that invites a comment (early), or an invitation to reflect or comment -\n"
                    "a question is fine (evening)",
     "CTA_RULES": "Early posts - no product promotion: never mention products, links or sales.\n" + _cta,
-    "FB_NOTE": V["FB_NOTE"],
+    "FB_NOTE": 'Facebook gets the same image (early) or the Reel as a video (evening) with the same text, with\n'
+               '"Link in bio." turned into the Gumroad link by the code.',
+    "REEL_STEPS": "REEL",
 })

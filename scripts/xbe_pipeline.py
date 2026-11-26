@@ -1,11 +1,18 @@
-"""xBetterEverydayx - publishing pipeline for the Composio workbench (v2.1, 26/11-2026: three slots).
+"""xBetterEverydayx - publishing pipeline for the Composio workbench (v2.2, 26/11-2026: three slots, evening Reel).
 
-The three scheduled tasks (early/midday/evening) load this file and prompts/renderer_inline.py from this repo at a
-PINNED commit, check both against a SHA-256 in the task prompt, and exec them in the workbench. The model only
-writes the text; everything deterministic runs here, in code:
+The scheduled tasks load this file, prompts/renderer_inline.py and scripts/xbe_reel.py from this repo at a PINNED
+commit, check them against a SHA-256 in the task prompt, and exec them in the workbench. The model only writes the
+text; everything deterministic runs here, in code:
 
     prepare(slot)            -> guard + history; returns whether to stop and the last 30 posts (short form)
     publish(content, slot)   -> guard again, render + quality control, upload, Instagram, verify, Facebook
+    finish(slot)             -> Reels only: continue a Reel that publish() left at "processing"/"facebook_pending"
+
+The evening slot is a Reel (Simon 26/11-2026): the quote as a 9:16 video with sound made by the system
+(scripts/xbe_reel.py). Video takes Instagram 30-120 s to process and a workbench cell may run 180 s at most, so a
+Reel is a small state machine: publish() renders, uploads and creates the container, then goes as far as it can in
+~150 s; finish() carries on from the saved state. Each step runs at most once: before publishing it checks whether
+the Reel already went out (a call that was cut off), and Facebook gets no blind retry for a video.
 
 Why: the old prompts made the model copy ~15 KB of renderer code and drive ~18 tool calls per post
 (~1.5 USD per run at list price). Now a run needs ~4-6 calls, and the safety rules are enforced by code,
@@ -46,12 +53,17 @@ ASSET_FILES = ["brand/x_mark.png", "brand/wordmark.png", "fonts/Montserrat-Extra
                "fonts/Montserrat-Black.ttf", "fonts/Montserrat-SemiBold.ttf", "fonts/PlayfairDisplay.ttf"]
 OUT_DIR = "/tmp/xbe_out"
 # Three posts a day (Simon 26/11-2026: "3 posts om dagen ... 7-13-20"). "render" is the renderer's content type:
-# "morning" = 3-slide carousel, "evening" = one quote image.
+# "morning" = 3-slide carousel, "evening" = one quote. The evening quote is posted as a Reel (Simon 26/11-2026).
 SLOTS = {
     "early": {"start": (7, 0), "media_type": "IMAGE", "images": 1, "render": "evening"},
     "midday": {"start": (13, 0), "media_type": "CAROUSEL_ALBUM", "images": 3, "render": "morning"},
-    "evening": {"start": (20, 0), "media_type": "IMAGE", "images": 1, "render": "evening"},
+    "evening": {"start": (20, 0), "media_type": "VIDEO", "images": 1, "render": "evening", "reel": True},
 }
+REEL_DIR = "/tmp/xbe_reel"
+REEL_STATE_DIRS = ["/mnt/files/xbe_state", "/tmp/xbe_state"]  # first that works; /mnt/files survives a sandbox restart
+REEL_BUDGET = 150          # s of work per workbench cell (hard limit 180 s)
+REEL_AUDIO_NAME = "xBetterEverydayx - Original Sound"
+_REELS = globals().get("_REELS", {})  # in-memory Reel state; kept if this file is exec'd again in the same sandbox
 WINDOW = _dt.timedelta(hours=2)        # a run that starts later than this is a late/catch-up run
 EARLY = _dt.timedelta(minutes=10)      # tolerance before the slot time
 RECENT = _dt.timedelta(hours=3)        # nothing may have been posted this recently
@@ -81,6 +93,10 @@ def to_cph(utc):
 
 def now_cph():
     return to_cph(_dt.datetime.now(_dt.timezone.utc))
+
+
+def _utc_now():
+    return _dt.datetime.now(_dt.timezone.utc)
 
 
 def parse_ts(ts):
@@ -209,7 +225,9 @@ def _direct_url(s3_url):
     """Facebook needs a direct image link; the s3_url redirects to it (sometimes only on a retry)."""
     for _ in range(3):
         try:
-            url = requests.get(s3_url, allow_redirects=True, timeout=60).url
+            r = requests.get(s3_url, allow_redirects=True, timeout=60, stream=True)  # headers only, not the file
+            url = r.url
+            r.close()
             if "r2.cloudflarestorage" in url:
                 return url
         except Exception:  # noqa: BLE001
@@ -328,11 +346,187 @@ def _publish_facebook(slot, caption, up):
         return f"ok after one retry {r.get('post_id') or r.get('id')} (first error: {ex})"
 
 
+# ---------------------------------------------------------------- Reels (the evening slot)
+
+def _reel_key(slot):
+    return f"{now_cph():%Y-%m-%d}_{slot}"
+
+
+def _save_reel(st):
+    _REELS[st["key"]] = st
+    for d in REEL_STATE_DIRS:
+        try:
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, f"reel_{st['key']}.json"), "w") as f:
+                json.dump(st, f)
+            return
+        except OSError:
+            continue
+
+
+def _load_reel(slot):
+    key = _reel_key(slot)
+    if key in _REELS:
+        return _REELS[key]
+    for d in REEL_STATE_DIRS:
+        try:
+            with open(os.path.join(d, f"reel_{key}.json")) as f:
+                st = json.load(f)
+            _REELS[key] = st
+            return st
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def _left(t0):
+    return REEL_BUDGET - (time.monotonic() - t0)
+
+
+def _reel_out(st):
+    """The Reel's media id if a post went out after its container was made (a cut-off call), else None."""
+    since = parse_ts(st["created"]) - _dt.timedelta(minutes=1)
+    for m in fetch_media(limit=5):
+        if parse_ts(m["timestamp"]) >= since:
+            return m["id"]
+    return None
+
+
+def _reel_status(creation_id, t0):
+    """FINISHED, or PROCESSING when this cell's time is used up. Raises on ERROR/EXPIRED."""
+    while True:
+        data = _call("INSTAGRAM_GET_POST_STATUS", {"creation_id": creation_id}, IG_ACCOUNT)
+        status = str(data.get("status_code") or data.get("status") or "").upper()
+        if "FINISHED" in status:
+            return "FINISHED"
+        if "ERROR" in status or "EXPIRED" in status:
+            raise RuntimeError(f"Reel container {creation_id}: {data.get('status') or status}")
+        if _left(t0) < 30:
+            return "PROCESSING"
+        time.sleep(5)
+
+
+def _reel_publish(st):
+    args = {"ig_user_id": IG_USER_ID, "creation_id": st["container"], "max_wait_seconds": 10}
+    try:
+        return _call("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH", args, IG_ACCOUNT)["id"], None
+    except Exception as ex:  # noqa: BLE001
+        time.sleep(5)
+        published = _reel_out(st)
+        if published:
+            return published, f"publish reported an error, but the Reel went out: {ex}"
+        time.sleep(5)
+        return _call("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH", args, IG_ACCOUNT)["id"], f"published on retry after: {ex}"
+
+
+def _publish_facebook_video(st):
+    message = fb_caption(st["slot"], st["caption"])
+    try:
+        r = _call("FACEBOOK_CREATE_VIDEO_POST", {
+            "page_id": FB_PAGE_ID, "description": message, "published": True,
+            "video": {"name": st["video"]["name"], "mimetype": "video/mp4", "s3key": st["video"]["s3key"]},
+        }, FB_ACCOUNT)
+        return f"ok {r.get('post_id') or r.get('id')}"
+    except Exception as ex:  # noqa: BLE001
+        time.sleep(10)
+        if _fb_just_posted():
+            return f"ok (posted despite an error: {ex})"
+        raise  # no blind retry for a video: a second copy on the page is worse than none
+
+
+def _reel_continue(st, out, t0):
+    """Instagram publish -> verify -> Facebook, each at most once, as far as this cell's time allows."""
+    out["stage"] = "instagram"
+    if not st.get("ig_media_id"):
+        media_id, note = _reel_out(st), None
+        if not media_id:
+            if _reel_status(st["container"], t0) != "FINISHED":
+                out.update(stage="processing", container=st["container"])
+                return out
+            media_id, note = _reel_publish(st)
+        if note:
+            out["warnings"].append(note)
+        st["ig_media_id"] = media_id
+        _save_reel(st)
+    out["ok"] = True  # the Reel is out - nothing below may repeat or undo it
+    out["ig_media_id"] = st["ig_media_id"]
+    if not st.get("permalink"):
+        out["stage"] = "verify"
+        v = _call("INSTAGRAM_GET_IG_MEDIA", {"ig_media_id": st["ig_media_id"],
+                                             "fields": "id,media_type,media_product_type,permalink"}, IG_ACCOUNT)
+        st["permalink"] = v.get("permalink") or "?"
+        _save_reel(st)
+        if v.get("media_type") != "VIDEO" or v.get("media_product_type", "REELS") != "REELS":
+            out["warnings"].append(f"verify: media_type={v.get('media_type')}, product={v.get('media_product_type')}")
+    out["permalink"] = st["permalink"]
+    if not st.get("facebook"):
+        if _left(t0) < 45:
+            out["stage"] = "facebook_pending"
+            return out
+        out["stage"] = "facebook"
+        try:
+            st["facebook"] = _publish_facebook_video(st)
+        except Exception as ex:  # noqa: BLE001
+            st["facebook"] = f"FAILED: {ex}"
+        _save_reel(st)
+    out["facebook"] = st["facebook"]
+    out["stage"] = "done"
+    return out
+
+
+def _publish_reel(content, slot, caption, out, dry_run, t0):
+    slide = content["slides"][0]
+    out["stage"] = "video"
+    shutil.rmtree(REEL_DIR, ignore_errors=True)
+    rr = render_reel(slide["text"], slide.get("style"), content.get("theme", "dark"), REEL_DIR)  # noqa: F821
+    if not rr["ok"]:
+        out["errors"] = rr["errors"]
+        return out
+    out["video_seconds"] = rr["duration"]
+
+    out["stage"] = "upload"
+    vid, cov = upload(rr["video"]), upload(rr["cover"])
+    out["video"], out["cover"] = vid["url"], cov["url"]  # direct links (valid ~1 h) - for checking the Reel
+    if dry_run:
+        out.update(ok=True, stage="dry_run_done", caption=caption, facebook_caption=fb_caption(slot, caption))
+        return out
+
+    out["stage"] = "instagram"
+    created = _call("INSTAGRAM_POST_IG_USER_MEDIA", {
+        "ig_user_id": IG_USER_ID, "media_type": "REELS", "caption": caption, "share_to_feed": True,
+        "audio_name": REEL_AUDIO_NAME, "cover_url": cov["url"],
+        "video_file": {"name": vid["name"], "mimetype": "video/mp4", "s3key": vid["s3key"]},
+    }, IG_ACCOUNT)
+    st = {"key": _reel_key(slot), "slot": slot, "container": created["id"], "caption": caption,
+          "created": _utc_now().strftime("%Y-%m-%dT%H:%M:%S+0000"),
+          "video": {"name": vid["name"], "s3key": vid["s3key"]},
+          "ig_media_id": None, "permalink": None, "facebook": None}
+    _save_reel(st)
+    return _reel_continue(st, out, t0)
+
+
+def finish(slot):
+    """Step 3b (Reels): carry on with today's Reel for this slot - publish, verify, Facebook - from where it stopped."""
+    out = {"slot": slot, "dry_run": False, "ok": False, "stage": "finish", "errors": [], "warnings": []}
+    t0 = time.monotonic()
+    try:
+        st = _load_reel(slot)
+        if not st:
+            out["stage"] = "lost"
+            out["errors"] = ["no Reel in progress for this slot today"]
+            return out
+        return _reel_continue(st, out, t0)
+    except Exception as ex:  # noqa: BLE001
+        out["errors"].append(f"{type(ex).__name__}: {ex}")
+        return out
+
+
 # ---------------------------------------------------------------- the whole run
 
 def publish(content, slot, dry_run=False):
     """Step 3: render + QC, then (unless dry_run) Instagram once, verify, Facebook once."""
     out = {"slot": slot, "dry_run": dry_run, "ok": False, "stage": "setup", "errors": [], "warnings": []}
+    t0 = time.monotonic()
     try:
         assert slot in SLOTS, f"unknown slot {slot!r}"
         content = dict(content, type=SLOTS[slot]["render"])  # the renderer knows "morning" (carousel) / "evening" (quote)
@@ -358,6 +552,8 @@ def publish(content, slot, dry_run=False):
             return out
         caption = full_caption(content)  # noqa: F821
         out["slides"] = [s.get("lines") for s in res["slides"]]
+        if SLOTS[slot].get("reel"):
+            return _publish_reel(content, slot, caption, out, dry_run, t0)
 
         out["stage"] = "upload"
         up = [upload(p) for p in res["files"]]

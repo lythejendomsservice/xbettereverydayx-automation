@@ -1,6 +1,7 @@
 import hashlib, json, urllib.request
 XBE_COMMIT = "{{COMMIT}}"
 XBE_FILES = {"prompts/renderer_inline.py": "{{H_RENDERER}}",
+             "scripts/xbe_reel.py": "{{H_REEL}}",
              "scripts/xbe_pipeline.py": "{{H_PIPELINE}}"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():

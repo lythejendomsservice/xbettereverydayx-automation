@@ -75,7 +75,7 @@ Read r:
   again (max 3 attempts in total). Still failing -> STOP, send a PushNotification "xBetterEverydayx
   {{SLOT}}: quality control failed - nothing posted" with the errors.
 - stage "guard": a post appeared in the meantime. STOP quietly.
-- "ok" is true: the Instagram post is out. Never run publish() again in this run. If "facebook"
+{{REEL_STEPS}}- "ok" is true: the Instagram post is out. Never run publish() again in this run. If "facebook"
   starts with "FAILED", send a PushNotification "xBetterEverydayx: Instagram OK, Facebook failed"
   with the error. If a warning starts with "verify", send a PushNotification with it.
 - "ok" is false at any other stage: send a PushNotification "xBetterEverydayx {{SLOT}}: <stage>

@@ -7,6 +7,7 @@ import datetime as dt
 import os
 import shutil
 import sys
+import tempfile
 import types
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,8 +26,9 @@ def ts(y, mo, d, h, mi, tz=CPH_WINTER):
     return dt.datetime(y, mo, d, h, mi, tzinfo=tz).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+0000")
 
 
-def load(script=None, now=None):
-    """Fresh workbench-like namespace. script: dict slug -> list of responses (exceptions are raised)."""
+def load(script=None, now=None, fake_reel=False):
+    """Fresh workbench-like namespace. script: dict slug -> list of responses (exceptions are raised).
+    fake_reel: replace the (slow) video rendering with a stub that writes two small files."""
     os.makedirs("/tmp/xbe_assets", exist_ok=True)
     for f in ["brand/x_mark.png", "brand/wordmark.png", "fonts/Montserrat-ExtraBold.ttf",
               "fonts/Montserrat-Black.ttf", "fonts/Montserrat-SemiBold.ttf", "fonts/PlayfairDisplay.ttf"]:
@@ -56,15 +58,39 @@ def load(script=None, now=None):
             self.url = url
             self.content = b"x" * 2000
 
+        def close(self):
+            pass
+
     fake_requests = types.SimpleNamespace(
         get=lambda url, **kw: FakeResp(url.replace("backend.composio.dev/api/v3/sl", "temp.r2.cloudflarestorage.com")))
     ns = {"__name__": "xbe_test"}
     exec(open(os.path.join(ROOT, "prompts", "renderer_inline.py")).read(), ns)
+    exec(open(os.path.join(ROOT, "scripts", "xbe_reel.py")).read(), ns)
     exec(open(os.path.join(ROOT, "scripts", "xbe_pipeline.py")).read(), ns)
     ns.update(run_composio_tool=run_composio_tool, upload_local_file=upload_local_file, requests=fake_requests)
-    ns["time"] = types.SimpleNamespace(sleep=lambda s: None)
+    clock = {"t": 0.0}
+
+    def sleep(s):
+        clock["t"] += s
+
+    def monotonic():
+        clock["t"] += 0.01
+        return clock["t"]
+
+    ns["time"] = types.SimpleNamespace(sleep=sleep, monotonic=monotonic)
+    ns["REEL_STATE_DIRS"] = [tempfile.mkdtemp(prefix="xbe_state_")]
     if now:
         ns["now_cph"] = lambda: now
+        ns["_utc_now"] = lambda: now.astimezone(dt.timezone.utc)
+    if fake_reel:
+        def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", seed=None):
+            os.makedirs(out_dir, exist_ok=True)
+            for name in ("reel.mp4", "cover.jpg"):
+                with open(os.path.join(out_dir, name), "wb") as fh:
+                    fh.write(b"x" * 1000)
+            return {"ok": True, "errors": [], "video": os.path.join(out_dir, "reel.mp4"),
+                    "cover": os.path.join(out_dir, "cover.jpg"), "duration": 9.0}
+        ns["render_reel"] = render_reel
     return ns, calls, uploads
 
 
@@ -240,24 +266,135 @@ ns, calls, _ = load(s, now=at(14, 30))
 r = ns["publish"](MORNING, "midday")
 check("slot already posted today: blocked", r["stage"] == "guard" and not r["ok"], r)
 
-# ---------------------------------------------------------------- real evening run (faked API)
-s = {
-    "INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}],
-    "INSTAGRAM_POST_IG_USER_MEDIA": [{"id": "c2"}],
-    "INSTAGRAM_GET_POST_STATUS": [{"status_code": "FINISHED"}],
-    "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH": [{"id": "m2"}],
-    "INSTAGRAM_GET_IG_MEDIA": [{"id": "m2", "media_type": "IMAGE", "permalink": "https://ig/p/m2"}],
-    "FACEBOOK_CREATE_PHOTO_POST": [{"id": "1", "post_id": "fb2"}],
-}
-ns, calls, _ = load(s, now=at(20, 6))
+# ---------------------------------------------------------------- the evening Reel (faked API, fake video)
+def reel_script(**over):
+    s = {
+        "INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}],
+        "INSTAGRAM_POST_IG_USER_MEDIA": [{"id": "c9"}],
+        "INSTAGRAM_GET_POST_STATUS": [{"status_code": "IN_PROGRESS"}, {"status_code": "FINISHED"}],
+        "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH": [{"id": "m9"}],
+        "INSTAGRAM_GET_IG_MEDIA": [{"id": "m9", "media_type": "VIDEO", "media_product_type": "REELS",
+                                    "permalink": "https://ig/reel/m9"}],
+        "FACEBOOK_CREATE_VIDEO_POST": [{"id": "v9"}],
+    }
+    s.update(over)
+    return s
+
+
+ns, calls, uploads = load(reel_script(), now=at(20, 4), fake_reel=True)
 r = ns["publish"](EVENING, "evening")
-ev = next(c for c in calls if c[0] == "INSTAGRAM_POST_IG_USER_MEDIA")
-fbp = next(c for c in calls if c[0] == "FACEBOOK_CREATE_PHOTO_POST")
-check("evening: ok and done", r["ok"] and r["stage"] == "done" and not r["warnings"], r)
-check("evening: alt text without asterisks", ev[1]["alt_text"].startswith("People who only call") and "*" not in ev[1]["alt_text"])
-check("evening: Instagram keeps 'Link in bio.'", "Link in bio." in ev[1]["caption"])
-check("evening: Facebook gets the Gumroad link, published", "Get it here: https://xbettereverydayx.gumroad.com/l/wzidk"
-      in fbp[1]["message"] and fbp[1]["published"] is True and fbp[1]["photo"]["s3key"])
+names = [c[0] for c in calls]
+cont = next(c for c in calls if c[0] == "INSTAGRAM_POST_IG_USER_MEDIA")
+fbv = next((c for c in calls if c[0] == "FACEBOOK_CREATE_VIDEO_POST"), None)
+check("reel: ok, done, permalink", r["ok"] and r["stage"] == "done" and r["permalink"] == "https://ig/reel/m9"
+      and not r["warnings"], r)
+check("reel: container is a REELS video with cover, shared to the feed", cont[1]["media_type"] == "REELS"
+      and cont[1]["share_to_feed"] is True and cont[1]["video_file"]["s3key"] and cont[1]["video_file"]["mimetype"]
+      == "video/mp4" and "r2.cloudflarestorage" in cont[1]["cover_url"] and "alt_text" not in cont[1], cont[1])
+check("reel: Instagram keeps 'Link in bio.'", "Link in bio." in cont[1]["caption"])
+check("reel: exactly one publish, video + cover uploaded", names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1
+      and [os.path.basename(u) for u in uploads] == ["reel.mp4", "cover.jpg"], (names, uploads))
+check("reel: Facebook gets the video with the Gumroad link", fbv and fbv[1]["page_id"] == "1033703049835931"
+      and fbv[1]["video"]["s3key"] and "Get it here: https://xbettereverydayx.gumroad.com/l/wzidk" in fbv[1]["description"]
+      and "FACEBOOK_CREATE_PHOTO_POST" not in names, fbv)
+fin = ns["finish"]("evening")
+check("reel: finish() after done changes nothing", fin["stage"] == "done" and fin["ok"]
+      and [c[0] for c in calls].count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1
+      and [c[0] for c in calls].count("FACEBOOK_CREATE_VIDEO_POST") == 1, fin)
+
+# Instagram still processing when the cell's time is up -> "processing"; finish() publishes once
+s = reel_script(**{"INSTAGRAM_GET_POST_STATUS": [{"status_code": "IN_PROGRESS"}]})
+ns, calls, _ = load(s, now=at(20, 4), fake_reel=True)
+r = ns["publish"](EVENING, "evening")
+check("reel slow: stage processing, nothing published", r["stage"] == "processing" and not r["ok"]
+      and r["container"] == "c9" and "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH" not in [c[0] for c in calls], r)
+s["INSTAGRAM_GET_POST_STATUS"] = [{"status_code": "FINISHED"}]
+fin = ns["finish"]("evening")
+names = [c[0] for c in calls]
+check("reel slow: finish() publishes once and posts to Facebook", fin["ok"] and fin["stage"] == "done"
+      and names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1 and names.count("FACEBOOK_CREATE_VIDEO_POST") == 1
+      and names.count("INSTAGRAM_POST_IG_USER_MEDIA") == 1, (fin, names))
+
+# the time runs out after Instagram -> "facebook_pending"; finish() does only Facebook
+s = reel_script(**{"INSTAGRAM_GET_POST_STATUS": [{"status_code": "IN_PROGRESS"}] * 22 + [{"status_code": "FINISHED"}]})
+ns, calls, _ = load(s, now=at(20, 4), fake_reel=True)
+r = ns["publish"](EVENING, "evening")
+check("reel late: Instagram out, Facebook pending", r["ok"] and r["stage"] == "facebook_pending"
+      and "FACEBOOK_CREATE_VIDEO_POST" not in [c[0] for c in calls], r)
+fin = ns["finish"]("evening")
+names = [c[0] for c in calls]
+check("reel late: finish() posts to Facebook only", fin["stage"] == "done" and fin["facebook"].startswith("ok")
+      and names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1 and names.count("FACEBOOK_CREATE_VIDEO_POST") == 1,
+      (fin, names))
+
+# the state is gone (new sandbox, nothing saved) -> "lost"
+ns, calls, _ = load(reel_script(), now=at(20, 30), fake_reel=True)
+fin = ns["finish"]("evening")
+check("reel: finish() without a Reel in progress -> lost", fin["stage"] == "lost" and not fin["ok"] and not calls, fin)
+
+# the container fails at Instagram -> nothing published
+s = reel_script(**{"INSTAGRAM_GET_POST_STATUS": [{"status_code": "ERROR", "status": "Error: video too short"}]})
+ns, calls, _ = load(s, now=at(20, 4), fake_reel=True)
+r = ns["publish"](EVENING, "evening")
+check("reel container ERROR: not published", not r["ok"] and r["stage"] == "instagram"
+      and "video too short" in " ".join(r["errors"]) and "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH" not in [c[0] for c in calls], r)
+
+# publish reports an error but the Reel went out -> no second publish
+OUT = [{"id": "m9", "caption": "", "timestamp": ts(2026, 11, 26, 20, 5), "permalink": "https://ig/reel/m9"}] + MEDIA
+s = reel_script(**{"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}, {"data": MEDIA}, {"data": OUT}],
+                   "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH": [RuntimeError("timeout"), {"id": "m9"}]})
+ns, calls, _ = load(s, now=at(20, 4), fake_reel=True)
+r = ns["publish"](EVENING, "evening")
+names = [c[0] for c in calls]
+check("reel publish error + Reel found: no retry", r["ok"] and names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1
+      and any("went out" in w for w in r["warnings"]), (r, names))
+
+# Facebook video fails and nothing appeared -> FAILED, no second copy
+s = reel_script(**{"FACEBOOK_CREATE_VIDEO_POST": [RuntimeError("upload failed")], "FACEBOOK_GET_PAGE_POSTS": [{"data": []}]})
+ns, calls, _ = load(s, now=at(20, 4), fake_reel=True)
+r = ns["publish"](EVENING, "evening")
+check("reel FB fails: IG ok, FB FAILED, one attempt", r["ok"] and r["stage"] == "done" and r["facebook"].startswith("FAILED")
+      and [c[0] for c in calls].count("FACEBOOK_CREATE_VIDEO_POST") == 1, r)
+
+# dry run: video + cover links, nothing written
+ns, calls, uploads = load(reel_script(), now=at(23, 30), fake_reel=True)
+r = ns["publish"](EVENING, "evening", dry_run=True)
+check("reel dry run: links, no Instagram/Facebook writes", r["ok"] and r["stage"] == "dry_run_done" and r["video"]
+      and r["cover"] and [c[0] for c in calls] == ["INSTAGRAM_GET_IG_USER_MEDIA"] and len(uploads) == 2, r)
+
+# ---------------------------------------------------------------- the Reel itself (real rendering, no API)
+ns, _, _ = load()
+tl = ns["reel_timeline"]
+check("reel timeline: 6 s minimum, ~9 s for 16 words, 13 s maximum",
+      tl(5)[1] == 6.0 and 8.5 <= tl(16)[1] <= 9.5 and tl(25)[1] <= 13.0 and abs(tl(16)[0][1] - tl(16)[0][0] - 0.3) < 1e-9)
+lay = ns["reel_layout"]("Most people quit right before the *habit* would have started paying them back for every hard "
+                        "morning they gave it, so stay *one more week*.")
+check("reel layout: 25 words fit the safe area at a readable size", ns["qc_reel_layout"](lay) == [] and lay["font_size"] >= 46,
+      (ns["qc_reel_layout"](lay), lay.get("font_size")))
+lay = ns["reel_layout"]("Your *standards* are what you do when nobody is *watching*.", "sans")
+check("reel layout: sans is uppercase and fits", lay["lines"][0].isupper() and ns["qc_reel_layout"](lay) == [], lay.get("lines"))
+import numpy as np  # noqa: E402
+snd = ns["make_sound"](9.0, 7)
+spec = np.abs(np.fft.rfft(snd.mean(axis=1))) ** 2
+freqs = np.fft.rfftfreq(len(snd), 1 / 48000)
+check("reel sound: 9 s stereo, no clipping, quiet start/end", snd.shape == (432000, 2) and np.max(np.abs(snd)) <= 0.86
+      and np.all(np.isfinite(snd)) and abs(snd[0]).max() < 1e-3 and abs(snd[-1]).max() < 1e-3)
+check("reel sound: made for phone speakers (<5 % below 150 Hz, mono-safe)",
+      spec[freqs < 150].sum() / spec.sum() < 0.05
+      and np.sqrt(np.mean(snd.mean(axis=1) ** 2)) / np.sqrt(np.mean(snd ** 2)) > 0.8)
+check("reel sound: same seed same sound, new seed new sound", np.array_equal(snd, ns["make_sound"](9.0, 7))
+      and not np.array_equal(snd, ns["make_sound"](9.0, 8)))
+if shutil.which("ffmpeg"):
+    out_dir = tempfile.mkdtemp(prefix="xbe_reel_")
+    rr = ns["render_reel"]("Some chapters end without *closure*. You either *grow* anyway, or you keep *rereading* "
+                           "them forever.", None, "dark", out_dir)
+    from PIL import Image  # noqa: E402
+    check("reel render: H.264 + AAC, 1080x1920, length as planned", rr["ok"] and abs(rr["duration"] - 9.03) < 0.1
+          and rr["size_mb"] < 50, rr)
+    check("reel render: cover 1080x1920 with all words", Image.open(rr["cover"]).size == (1080, 1920)
+          and rr["lines"][-1] == "forever.", rr.get("lines"))
+else:
+    print("skip reel render: no ffmpeg on this machine")
 
 # ---------------------------------------------------------------- real early run (faked API)
 EARLY = {"type": "early", "slides": [{"text": "Discipline is remembering what you *want* when you no longer feel like it."}],
