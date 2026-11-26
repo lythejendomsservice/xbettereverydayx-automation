@@ -214,13 +214,24 @@ class _Frames:
 
 # ---------------------------------------------------------------- sound (original, generated here)
 
-KEYS = [57, 60, 62, 64, 53, 55]  # minor-key roots: A, C, D, E, F, G (MIDI)
+# Five sounds that rotate day by day (Simon 26/11-2026: "lave nogle forskellige og skifte lidt imellem" and
+# "lidt mere ... du er en mand, du skal disciplin-agtig vibe ... lidt mere rå"). Four are raw, one is the calm
+# sound from the first sample (Simon: "ganske tilfreds"). In the raw ones a hit lands when the last word appears.
+SOUND_STYLES = ["march", "heartbeat", "grit", "cinematic", "calm"]
+SOUND_START = (2026, 11, 27)  # the first Reel gets "march", then the list repeats day by day
+KEYS = [57, 60, 62, 64, 53, 55]  # calm: minor-key roots A, C, D, E, F, G (MIDI)
 PROGRESSIONS = [
     [(0, 3), (8, 4), (3, 4), (10, 4)],   # i - VI - III - VII   (root offset, third in semitones)
     [(0, 3), (10, 4), (8, 4), (10, 4)],  # i - VII - VI - VII
     [(0, 3), (5, 3), (8, 4), (7, 3)],    # i - iv - VI - v
     [(0, 3), (8, 4), (5, 3), (7, 4)],    # i - VI - iv - V
 ]
+
+
+def sound_for_day(day):
+    """The sound for a date - never the same two days in a row."""
+    start = day.__class__(*SOUND_START)
+    return SOUND_STYLES[(day - start).days % len(SOUND_STYLES)]
 
 
 def _hz(midi):
@@ -234,22 +245,182 @@ def _lowpass(x, sr, fc, order=4):
     return np.fft.irfft(spec * (resp[:, None] if x.ndim == 2 else resp), n=x.shape[0], axis=0)
 
 
-def make_sound(duration, seed, sr=SR):
-    """Stereo float array (n, 2) in [-1, 1]: calm minor chords and a few bell notes with a short reverb.
+def _bandpass(x, sr, lo, hi):
+    return _lowpass(x, sr, hi) - _lowpass(x, sr, lo)
 
-    Made for phone speakers (mono, nothing below ~150 Hz): the chords sit around 200-450 Hz with overtones,
-    the bells around 440-880 Hz, and the stereo width comes only from the reverb, so mono never cancels out.
-    Deterministic per seed - the seed changes with the quote, so every day sounds a little different.
-    """
-    rng = np.random.default_rng(seed)
-    n = int(round(duration * sr))
+
+def _add(buf, x, t0, sr, gain=1.0):
+    i = int(round(t0 * sr))
+    if i >= len(buf) or i + len(x) <= 0:
+        return
+    a, b = max(0, -i), min(len(x), len(buf) - i)
+    buf[i + a:i + b] += gain * x[a:b]
+
+
+def _saws(t, notes, cents, rng):
+    """Naive sawtooth voices (aliasing is negligible at these pitches and is filtered afterwards)."""
+    x = np.zeros(len(t))
+    for note in notes:
+        for c in (-cents, cents):
+            f = _hz(note) * 2 ** (c / 1200)
+            x += 2 * ((f * t + rng.random()) % 1.0) - 1
+    return x
+
+
+def _drum(sr, rng, f_hi, f_lo, pitch_decay, amp_decay, length, noise=0.0, band=(1500, 6000), noise_decay=0.03,
+          drive=2.5):
+    """A pitched hit (kick, taiko, heartbeat) with a noise attack, saturated so a phone can hear it."""
+    m = int(length * sr)
+    t = np.arange(m) / sr
+    f = f_lo + (f_hi - f_lo) * np.exp(-t / pitch_decay)
+    body = np.sin(2 * np.pi * np.cumsum(f) / sr) * np.minimum(t / 0.002, 1) * np.exp(-t / amp_decay)
+    if noise:
+        nz = _bandpass(rng.standard_normal(m), sr, *band) * np.exp(-t / noise_decay)
+        body = body + noise * nz / (np.max(np.abs(nz)) or 1)
+    return np.tanh(drive * body) / np.tanh(drive)
+
+
+def _pad(n, sr, notes, cutoff, drive, attack, rng, cents=7):
+    t = np.arange(n) / sr
+    x = _lowpass(_saws(t, notes, cents, rng), sr, cutoff)
+    x /= np.sqrt(np.mean(x ** 2)) or 1.0
+    x = np.tanh(drive * 0.5 * x)
+    return x * _ease_arr(t / attack) * (1 + 0.08 * np.sin(2 * np.pi * 0.2 * t))
+
+
+def _braam(sr, rng, root, length=3.2):
+    """The big low brass hit: saws, a filter that closes after the attack, heavy saturation."""
+    m = int(length * sr)
+    t = np.arange(m) / sr
+    x = _saws(t, (root - 12, root, root + 7), 9, rng)
+    w = np.exp(-t / 0.4)
+    y = _lowpass(x, sr, 2600) * w + _lowpass(x, sr, 420) * (1 - w)
+    y /= np.max(np.abs(y)) or 1.0
+    y = np.tanh(3.0 * y) / np.tanh(3.0)
+    return y * np.minimum(t / 0.035, 1) * np.exp(-t / 1.6)
+
+
+def _riser(sr, rng, length):
+    """Noise + rising tone that swells into the hit."""
+    m = int(length * sr)
+    t = np.arange(m) / sr
+    nz = _bandpass(rng.standard_normal(m), sr, 500, 7000)
+    nz /= np.max(np.abs(nz)) or 1.0
+    tone = np.sin(2 * np.pi * np.cumsum(200 * 4 ** (t / length)) / sr)
+    return (0.7 * nz + 0.3 * tone) * (t / length) ** 3
+
+
+def _pulse(n, sr, rng, root_hz, step, t0, t1):
+    """Distorted saw bass in eighths - the growl comes from the overtones, so phones play it."""
+    buf = np.zeros(n)
+    m = int(step * sr * 0.95)
+    tt = np.arange(m) / sr
+    k, tb = 0, t0
+    while tb < t1:
+        f = root_hz * (2 if k % 8 == 6 else 1)
+        x = (2 * ((f * tt + rng.random()) % 1.0) - 1) * np.minimum(tt / 0.004, 1) * np.exp(-tt / 0.16)
+        _add(buf, x, tb, sr)
+        tb += step
+        k += 1
+    buf = _lowpass(buf, sr, 900)
+    buf /= np.max(np.abs(buf)) or 1.0
+    return np.tanh(3.5 * buf) / np.tanh(3.5)
+
+
+def _hit_into(buf, sr, rng, accent, root, riser=1.0, braam=0.9, taiko=1.0):
+    if riser:
+        r = _riser(sr, rng, min(riser, max(0.3, accent - 0.1)))
+        _add(buf, r, accent - len(r) / sr, sr, 0.35)
+    if braam:
+        _add(buf, _braam(sr, rng, root), accent, sr, braam)
+    if taiko:
+        _add(buf, _drum(sr, rng, 125, 58, 0.07, 0.6, 1.6, 0.3, (150, 900), 0.05, 3.0), accent, sr, taiko)
+
+
+def _march(n, sr, duration, accent, rng):
+    beat = 60 / rng.uniform(84, 96)
+    root = int(rng.choice([40, 41, 43, 45]))  # E2-A2 power chord
+    buf = 0.55 * _pad(n, sr, (root, root + 7, root + 12), 1100, 2.2, 1.2, rng)
+    k, tb = 0, 0.15
+    while tb < duration - 0.4:
+        gain = 0.8 if tb < accent else 1.0
+        if accent - 0.45 <= tb < accent:  # a short break, so the hit on the last word lands harder
+            tb += beat
+            k += 1
+            continue
+        if k % 4 in (0, 2):
+            _add(buf, _drum(sr, rng, 125, 60, 0.07, 0.5, 1.4, 0.3, (150, 900), 0.05, 3.0), tb, sr, gain)
+        else:
+            _add(buf, _drum(sr, rng, 240, 180, 0.02, 0.09, 0.4, 0.9, (1500, 7000), 0.08, 1.6), tb, sr, 0.45 * gain)
+        if rng.random() < 0.5:
+            _add(buf, _drum(sr, rng, 900, 700, 0.01, 0.02, 0.12, 0.8, (3000, 9000), 0.02, 1.2), tb + beat / 2, sr,
+                 0.16 * gain)
+        tb += beat
+        k += 1
+    _hit_into(buf, sr, rng, accent, root + 12, riser=0.8)
+    return buf, 0.22, 0.35
+
+
+def _heartbeat(n, sr, duration, accent, rng):
+    period = 60 / rng.uniform(60, 70)
+    root = int(rng.choice([45, 46, 48, 50]))
+    buf = 0.5 * _pad(n, sr, (root - 12, root, root + 3, root + 7), 800, 1.6, 1.5, rng)
+    tb = 0.25
+    while tb < duration - 0.6:
+        if accent - 0.4 <= tb < accent:
+            tb += period
+            continue
+        g = 0.6 + 0.4 * min(1.0, tb / max(accent, 0.1)) if tb < accent else 0.75
+        _add(buf, _drum(sr, rng, 120, 45, 0.04, 0.16, 0.5, 0.05, (200, 1200), 0.02, 3.2), tb, sr, g)
+        _add(buf, _drum(sr, rng, 100, 42, 0.04, 0.14, 0.5, 0.04, (200, 1200), 0.02, 3.0), tb + 0.22, sr, 0.65 * g)
+        tb += period
+    _hit_into(buf, sr, rng, accent, root, riser=1.2)
+    return buf, 0.25, 0.45
+
+
+def _grit(n, sr, duration, accent, rng):
+    bpm = rng.uniform(88, 100)
+    eighth = 30 / bpm
+    root = int(rng.choice([40, 41, 43, 45]))  # E2-A2: low enough to growl, high enough for a phone
+    buf = 0.25 * _pad(n, sr, (root, root + 3, root + 7), 1200, 1.4, 1.0, rng)
+    t = np.arange(n) / sr
+    drop = 1 - _ease_arr((t - (accent - 0.5)) / 0.08) * (1 - _ease_arr((t - accent) / 0.02))  # silence just before the hit
+    buf += 0.7 * _pulse(n, sr, rng, _hz(root), eighth, 0.1, duration - 0.5) * drop
+    k, tb = 0, 0.1
+    while tb < duration - 0.5:
+        if accent - 0.5 <= tb < accent:
+            tb += 2 * eighth
+            k += 1
+            continue
+        _add(buf, _drum(sr, rng, 160, 50, 0.03, 0.28, 0.6, 0.12, (2000, 7000), 0.02, 2.5), tb, sr, 0.9)
+        if tb >= accent and k % 2 == 1:  # claps join when the last word lands
+            _add(buf, _drum(sr, rng, 1000, 900, 0.01, 0.001, 0.3, 1.0, (1000, 5000), 0.08, 1.4), tb, sr, 0.5)
+        tb += 2 * eighth
+        k += 1
+    _hit_into(buf, sr, rng, accent, root, riser=1.0, braam=0.6, taiko=0.8)
+    return buf, 0.15, 0.3
+
+
+def _cinematic(n, sr, duration, accent, rng):
+    root = int(rng.choice([45, 47, 48, 50]))
+    buf = 0.45 * _pad(n, sr, (root, root + 3, root + 7, root + 12), 1800, 1.3, 2.2, rng)
+    buf += 0.35 * _pad(n, sr, (root - 12,), 500, 1.5, 1.0, rng)
+    t = np.arange(n) / sr
+    ost = _pulse(n, sr, rng, _hz(root - 12), 30 / 90, accent, duration - 0.5)
+    buf += 0.35 * ost * _ease_arr((t - accent) / 0.3)
+    _hit_into(buf, sr, rng, accent, root, riser=1.8, braam=1.0, taiko=1.0)
+    return buf, 0.35, 0.6
+
+
+def _calm(n, sr, duration, accent, rng):
+    """The first sample's sound: soft minor chords and a few bell notes (no hit)."""
     t = np.arange(n) / sr
     root = KEYS[int(rng.integers(len(KEYS)))]
     prog = PROGRESSIONS[int(rng.integers(len(PROGRESSIONS)))]
     k = 2 if duration <= 8 else 3 if duration <= 11 else 4
     seg = duration / k
     pad = np.zeros(n)
-    bells = np.zeros((n, 2))
+    bells = np.zeros(n)
     for c, (off, third) in enumerate(prog[:k]):
         s, e = c * seg, (c + 1) * seg
         i0, i1 = int(max(0, s - 0.05) * sr), min(n, int((e + 1.2) * sr))
@@ -258,41 +429,59 @@ def make_sound(duration, seed, sr=SR):
         r = root + off
         for note, level in ((r - 12, 0.5), (r, 1.0), (r + third, 0.9), (r + 7, 0.9), (r + 12, 0.6)):
             for h, amp in ((1, 1.0), (2, 0.4), (3, 0.18), (4, 0.08)):
-                for cents in (-5, 5):  # two slightly detuned voices in BOTH channels: chorus, mono-safe
+                for cents in (-5, 5):
                     fq = _hz(note) * h * 2 ** (cents / 1200)
                     pad[i0:i1] += level * amp * env * np.sin(2 * np.pi * fq * tt + rng.uniform(0, 6.28))
-        for b in range(int(seg // 1.6) + 1):  # soft bell notes from the chord, panned a little left/right
+        for b in range(int(seg // 1.6) + 1):
             bt = s + 0.8 + b * 1.6
             if bt > duration - 1.2:
                 break
             note = r + int(rng.choice([12, 12 + third, 19, 24]))
-            j0 = int(bt * sr)
-            j1 = min(n, j0 + int(2.5 * sr))
-            u = t[j0:j1] - bt
+            u = np.arange(int(2.5 * sr)) / sr
             bell = (np.sin(2 * np.pi * _hz(note) * u) + 0.25 * np.sin(2 * np.pi * _hz(note) * 2.0 * u)
                     + 0.06 * np.sin(2 * np.pi * _hz(note) * 3.0 * u)) * np.exp(-u / 0.9) * np.minimum(u / 0.005, 1)
-            pan = 0.4 if b % 2 else 0.6
-            bells[j0:j1, 0] += bell * (1 - pan)
-            bells[j0:j1, 1] += bell * pan
+            _add(bells, bell, bt, sr)
     pad /= np.sqrt(np.mean(pad ** 2)) or 1.0
     bells /= np.sqrt(np.mean(bells ** 2)) or 1.0
-    dry = np.stack([pad, pad], axis=1) + 0.55 * bells
-    dry = _lowpass(dry, sr, 3000) - _lowpass(dry, sr, 140)   # band 140 Hz - 3 kHz: what a phone can play
+    return _lowpass(pad + 0.55 * bells, sr, 3000), 0.3, 0.55
+
+
+SOUND_BUILDERS = {"march": _march, "heartbeat": _heartbeat, "grit": _grit, "cinematic": _cinematic, "calm": _calm}
+
+
+def make_sound(duration, seed, sr=SR, style=None, accent=None):
+    """Stereo float array (n, 2) in [-1, 1]. Deterministic per seed; style = one of SOUND_STYLES.
+
+    Made for phone speakers: drums, bass and pads are saturated, so their overtones (150 Hz - 5 kHz) carry
+    them; loudness is set on that band. Everything sits in the middle; the width comes only from the reverb,
+    so mono never cancels out.
+    """
+    rng = np.random.default_rng(seed)
+    style = style if style in SOUND_BUILDERS else SOUND_STYLES[seed % len(SOUND_STYLES)]
+    accent = accent if accent is not None else 0.55 * duration
+    n = int(round(duration * sr))
+    t = np.arange(n) / sr
+    dry, wet_amount, decay = SOUND_BUILDERS[style](n, sr, duration, accent, rng)
     ir_n = int(2.4 * sr)
-    tail = np.exp(-np.arange(ir_n) / (0.55 * sr))
-    ir = _lowpass(rng.standard_normal((ir_n, 2)) * tail[:, None], sr, 3000)
+    ir = _lowpass(rng.standard_normal((ir_n, 2)) * np.exp(-np.arange(ir_n) / (decay * sr))[:, None], sr, 3000)
     ir /= np.sqrt(np.sum(ir ** 2, axis=0, keepdims=True))
+    stereo = np.stack([dry, dry], axis=1)
     size = 1 << int(np.ceil(np.log2(n + ir_n)))
-    wet = np.fft.irfft(np.fft.rfft(dry, size, axis=0) * np.fft.rfft(ir, size, axis=0), size, axis=0)[:n]
-    mix = dry + 0.3 * wet
-    mix -= mix.mean(axis=0)
-    rms = np.sqrt(np.mean(mix.mean(axis=1) ** 2)) or 1.0
-    mix *= 0.16 / rms                         # about -16 dBFS RMS (mono sum): present on a phone, still a background
-    mix = np.tanh(mix * 1.5) / 1.5
+    wet = np.fft.irfft(np.fft.rfft(stereo, size, axis=0) * np.fft.rfft(ir, size, axis=0), size, axis=0)[:n]
+    mix = stereo + wet_amount * wet
+    mix -= _lowpass(mix, sr, 40)                      # no rumble below 40 Hz
+    if style != "calm":                               # -6 dB below ~60 Hz: the sub must not eat the headroom
+        f = np.fft.rfftfreq(n, 1 / sr)
+        shelf = 0.5 + 0.5 * _ease_arr((f - 60) / 80)
+        mix = np.fft.irfft(np.fft.rfft(mix, axis=0) * shelf[:, None], n=n, axis=0)
+    phone = _bandpass(mix.mean(axis=1), sr, 150, 5000)
+    target = 0.16 if style == "calm" else 0.18        # about -16 / -15 dBFS in the band a phone plays
+    mix *= target / (np.sqrt(np.mean(phone ** 2)) or 1.0)
+    mix = np.tanh(mix * 1.2) / 1.2
     peak = np.max(np.abs(mix)) or 1.0
-    if peak > 0.85:
-        mix *= 0.85 / peak
-    fade_in = np.minimum(t / 0.08, 1)
+    if peak > 0.89:
+        mix *= 0.89 / peak
+    fade_in = np.minimum(t / 0.05, 1)
     fade_out = np.clip((duration - t) / (END_FADE + 0.3), 0, 1)
     return mix * (fade_in * fade_out)[:, None]
 
@@ -332,8 +521,9 @@ def qc_reel(path, expected_seconds):
     return errs, round(seconds, 2)
 
 
-def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", seed=None):
-    """The quote as reel.mp4 (1080x1920, H.264 + AAC) and cover.jpg (all words shown)."""
+def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", seed=None, sound=None):
+    """The quote as reel.mp4 (1080x1920, H.264 + AAC) and cover.jpg (all words shown).
+    sound: one of SOUND_STYLES (the pipeline picks today's with sound_for_day)."""
     out = {"ok": False, "errors": []}
     theme = THEMES.get(theme_name)  # noqa: F821
     if theme is None:
@@ -351,7 +541,8 @@ def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", se
     cover = os.path.join(out_dir, "cover.jpg")
     Image.fromarray(frames.frame(total, final=True)).save(cover, "JPEG", quality=92, optimize=True)
     wav = os.path.join(out_dir, "sound.wav")
-    write_wav(wav, make_sound(total, seed))
+    sound = sound if sound in SOUND_STYLES else SOUND_STYLES[seed % len(SOUND_STYLES)]
+    write_wav(wav, make_sound(total, seed, style=sound, accent=starts[-1] + WORD_FADE))
     video = os.path.join(out_dir, "reel.mp4")
     n_frames = int(round(total * REEL_FPS))
     cmd = [ffmpeg_exe(), "-y", "-loglevel", "error",
@@ -372,7 +563,7 @@ def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", se
         out["errors"] = ["ffmpeg failed: " + open(err_path, errors="replace").read()[-300:]]
         return out
     errs, seconds = qc_reel(video, n_frames / REEL_FPS)
-    out.update(ok=not errs, errors=errs, video=video, cover=cover, duration=seconds, frames=n_frames, seed=seed,
+    out.update(ok=not errs, errors=errs, video=video, cover=cover, duration=seconds, frames=n_frames, seed=seed, sound=sound,
                style=lay["style"], font_size=lay["font_size"], lines=lay["lines"],
                size_mb=round(os.path.getsize(video) / 1e6, 2))
     return out

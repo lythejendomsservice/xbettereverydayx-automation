@@ -478,11 +478,12 @@ def _publish_reel(content, slot, caption, out, dry_run, t0):
     slide = content["slides"][0]
     out["stage"] = "video"
     shutil.rmtree(REEL_DIR, ignore_errors=True)
-    rr = render_reel(slide["text"], slide.get("style"), content.get("theme", "dark"), REEL_DIR)  # noqa: F821
+    rr = render_reel(slide["text"], slide.get("style"), content.get("theme", "dark"), REEL_DIR,  # noqa: F821
+                     sound=sound_for_day(now_cph().date()))  # noqa: F821 (xbe_reel.py) - a new sound every day
     if not rr["ok"]:
         out["errors"] = rr["errors"]
         return out
-    out["video_seconds"] = rr["duration"]
+    out["video_seconds"], out["sound"] = rr["duration"], rr.get("sound")
 
     out["stage"] = "upload"
     vid, cov = upload(rr["video"]), upload(rr["cover"])

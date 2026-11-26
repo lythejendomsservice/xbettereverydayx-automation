@@ -83,13 +83,14 @@ def load(script=None, now=None, fake_reel=False):
         ns["now_cph"] = lambda: now
         ns["_utc_now"] = lambda: now.astimezone(dt.timezone.utc)
     if fake_reel:
-        def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", seed=None):
+        def render_reel(text, style=None, theme_name="dark", out_dir="/tmp/xbe_reel", seed=None, sound=None):
+            ns["_last_sound"] = sound
             os.makedirs(out_dir, exist_ok=True)
             for name in ("reel.mp4", "cover.jpg"):
                 with open(os.path.join(out_dir, name), "wb") as fh:
                     fh.write(b"x" * 1000)
             return {"ok": True, "errors": [], "video": os.path.join(out_dir, "reel.mp4"),
-                    "cover": os.path.join(out_dir, "cover.jpg"), "duration": 9.0}
+                    "cover": os.path.join(out_dir, "cover.jpg"), "duration": 9.0, "sound": sound}
         ns["render_reel"] = render_reel
     return ns, calls, uploads
 
@@ -292,6 +293,8 @@ check("reel: container is a REELS video with cover, shared to the feed", cont[1]
       and cont[1]["share_to_feed"] is True and cont[1]["video_file"]["s3key"] and cont[1]["video_file"]["mimetype"]
       == "video/mp4" and "r2.cloudflarestorage" in cont[1]["cover_url"] and "alt_text" not in cont[1], cont[1])
 check("reel: Instagram keeps 'Link in bio.'", "Link in bio." in cont[1]["caption"])
+check("reel: today's sound is passed on (26/11 = calm, the day before the first Reel's march)",
+      ns["_last_sound"] == "calm" and r["sound"] == "calm", (ns.get("_last_sound"), r.get("sound")))
 check("reel: exactly one publish, video + cover uploaded", names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1
       and [os.path.basename(u) for u in uploads] == ["reel.mp4", "cover.jpg"], (names, uploads))
 check("reel: Facebook gets the video with the Gumroad link", fbv and fbv[1]["page_id"] == "1033703049835931"
@@ -374,16 +377,38 @@ check("reel layout: 25 words fit the safe area at a readable size", ns["qc_reel_
 lay = ns["reel_layout"]("Your *standards* are what you do when nobody is *watching*.", "sans")
 check("reel layout: sans is uppercase and fits", lay["lines"][0].isupper() and ns["qc_reel_layout"](lay) == [], lay.get("lines"))
 import numpy as np  # noqa: E402
-snd = ns["make_sound"](9.0, 7)
-spec = np.abs(np.fft.rfft(snd.mean(axis=1))) ** 2
-freqs = np.fft.rfftfreq(len(snd), 1 / 48000)
-check("reel sound: 9 s stereo, no clipping, quiet start/end", snd.shape == (432000, 2) and np.max(np.abs(snd)) <= 0.86
-      and np.all(np.isfinite(snd)) and abs(snd[0]).max() < 1e-3 and abs(snd[-1]).max() < 1e-3)
-check("reel sound: made for phone speakers (<5 % below 150 Hz, mono-safe)",
-      spec[freqs < 150].sum() / spec.sum() < 0.05
-      and np.sqrt(np.mean(snd.mean(axis=1) ** 2)) / np.sqrt(np.mean(snd ** 2)) > 0.8)
-check("reel sound: same seed same sound, new seed new sound", np.array_equal(snd, ns["make_sound"](9.0, 7))
-      and not np.array_equal(snd, ns["make_sound"](9.0, 8)))
+def _rms(x):
+    return float(np.sqrt(np.mean(x ** 2)))
+
+
+def _db(x):
+    return 20 * np.log10(max(x, 1e-9))
+
+
+ACC = 0.25 + 15 * 0.3 + 0.28  # 16 words: the last word is fully shown at 4.73 s
+for style in ns["SOUND_STYLES"]:
+    snd = ns["make_sound"](9.0, 7, style=style, accent=ACC)
+    mono = snd.mean(axis=1)
+    phone = _db(_rms(ns["_bandpass"](mono, 48000, 150, 5000)))
+    seg = lambda a, b: _rms(mono[int(a * 48000):int(b * 48000)])  # noqa: E731
+    check(f"reel sound {style}: 9 s stereo, no clipping, quiet start/end", snd.shape == (432000, 2)
+          and np.max(np.abs(snd)) <= 0.9 and np.all(np.isfinite(snd)) and abs(snd[0]).max() < 1e-3
+          and abs(snd[-1]).max() < 1e-3)
+    check(f"reel sound {style}: loud enough on a phone, mono-safe", -19 <= phone <= -13
+          and _rms(mono) / _rms(snd) > 0.8, (phone, _rms(mono) / _rms(snd)))
+    if style == "grit":
+        check("reel sound grit: the bass drops out, then the hit lands on the last word",
+              _db(seg(ACC, ACC + 0.4)) - _db(seg(ACC - 0.4, ACC - 0.05)) >= 6)
+    elif style != "calm":
+        check(f"reel sound {style}: a hit when the last word lands",
+              _db(seg(ACC, ACC + 0.4)) - _db(seg(ACC - 1.2, ACC - 0.6)) >= 3)
+snd = ns["make_sound"](9.0, 7, style="march", accent=ACC)
+check("reel sound: same seed same sound, new seed new sound",
+      np.array_equal(snd, ns["make_sound"](9.0, 7, style="march", accent=ACC))
+      and not np.array_equal(snd, ns["make_sound"](9.0, 8, style="march", accent=ACC)))
+days = [ns["sound_for_day"](dt.date(2026, 11, 27) + dt.timedelta(days=i)) for i in range(30)]
+check("reel sound: the first Reel (27/11) gets march, never the same two days in a row, all five used",
+      days[0] == "march" and all(a != b for a, b in zip(days, days[1:])) and set(days) == set(ns["SOUND_STYLES"]))
 if shutil.which("ffmpeg"):
     out_dir = tempfile.mkdtemp(prefix="xbe_reel_")
     rr = ns["render_reel"]("Some chapters end without *closure*. You either *grow* anyway, or you keep *rereading* "
