@@ -86,20 +86,29 @@ EVENING = {"type": "evening", "slides": [
 # ---------------------------------------------------------------- guard
 ns, _, _ = load()
 g = ns["check_guard"]
-yesterday_evening = [{"timestamp": ts(2026, 11, 25, 19, 38), "permalink": "p0"}]
 at = lambda h, mi, d=26: dt.datetime(2026, 11, d, h, mi, tzinfo=CPH_WINTER)  # noqa: E731
-check("morning 06:09, last post yesterday evening -> go", g("morning", yesterday_evening, at(6, 9)) == [])
-r = g("morning", [{"timestamp": ts(2026, 11, 26, 6, 5), "permalink": "p1"}] + yesterday_evening, at(6, 9))
-check("morning 06:09, posted 06:05 -> stop (recent + slot)", len(r) == 2 and "already posted" in r[1], r)
-check("morning 08:30 -> late", "late" in " ".join(g("morning", yesterday_evening, at(8, 30))))
-check("morning 05:40 -> too early", "early" in " ".join(g("morning", yesterday_evening, at(5, 40))))
-check("morning 05:55 -> within tolerance", g("morning", yesterday_evening, at(5, 55)) == [])
-today_morning = [{"timestamp": ts(2026, 11, 26, 6, 12), "permalink": "m"}] + yesterday_evening
-check("evening 19:36 after morning 06:12 -> go", g("evening", today_morning, at(19, 36)) == [])
-r = g("evening", [{"timestamp": ts(2026, 11, 26, 19, 31), "permalink": "e"}] + today_morning, at(19, 36))
-check("evening 19:36, posted 19:31 -> stop", any("already posted" in x for x in r), r)
-check("evening 22:00 -> late", "late" in " ".join(g("evening", today_morning, at(22, 0))))
-check("dry run ignores the window", g("morning", yesterday_evening, at(23, 30), enforce_window=False) == [])
+yesterday_evening = [{"timestamp": ts(2026, 11, 25, 20, 4), "permalink": "p0"}]
+check("early 07:05, last post yesterday evening -> go", g("early", yesterday_evening, at(7, 5)) == [])
+r = g("early", [{"timestamp": ts(2026, 11, 26, 7, 2), "permalink": "p1"}] + yesterday_evening, at(7, 9))
+check("early 07:09, posted 07:02 -> stop (recent + slot)", len(r) == 2 and "already posted" in r[1], r)
+check("early 09:30 -> too late", "too late" in " ".join(g("early", yesterday_evening, at(9, 30))))
+check("early 06:40 -> too early", "too early" in " ".join(g("early", yesterday_evening, at(6, 40))))
+check("early 06:55 -> within tolerance", g("early", yesterday_evening, at(6, 55)) == [])
+today_early = [{"timestamp": ts(2026, 11, 26, 7, 3), "permalink": "e1"}] + yesterday_evening
+check("midday 13:05 after early 07:03 -> go", g("midday", today_early, at(13, 5)) == [])
+r = g("midday", [{"timestamp": ts(2026, 11, 26, 13, 2), "permalink": "m1"}] + today_early, at(13, 9))
+check("midday 13:09, posted 13:02 -> stop", any("already posted" in x for x in r), r)
+today_two = [{"timestamp": ts(2026, 11, 26, 13, 4), "permalink": "m1"}] + today_early
+check("evening 20:05 after 07 and 13 -> go", g("evening", today_two, at(20, 5)) == [])
+r = g("evening", [{"timestamp": ts(2026, 11, 26, 20, 1), "permalink": "v1"}] + today_two, at(20, 6))
+check("evening 20:06, posted 20:01 -> stop", any("already posted" in x for x in r), r)
+check("evening 22:30 -> too late", "too late" in " ".join(g("evening", today_two, at(22, 30))))
+check("a post at 06:11 counts as today's early slot",
+      any("already posted" in x for x in g("early", [{"timestamp": ts(2026, 11, 26, 6, 11), "permalink": "o"}], at(7, 30))))
+so = ns["slot_of"]
+check("slot_of boundaries", [so(at(h, m)) for h, m in [(9, 59), (10, 0), (16, 59), (17, 0), (20, 0)]]
+      == ["early", "midday", "midday", "evening", "evening"])
+check("dry run ignores the window", g("midday", yesterday_evening, at(23, 30), enforce_window=False) == [])
 off = ns["_cph_offset_hours"]
 U = dt.timezone.utc
 check("DST fallback: winter", off(dt.datetime(2026, 11, 25, 12, tzinfo=U)) == 1)
@@ -120,27 +129,27 @@ check("render: no line is only punctuation", all(any(c.isalnum() for c in ln) fo
 
 # ---------------------------------------------------------------- Facebook caption
 fb = ns["fb_caption"]
-check("evening FB: Gumroad link replaces 'Link in bio.'",
+check("evening FB: the Circle Audit line gets its Gumroad link",
       fb("evening", EVENING["caption"]).endswith("Get it here: https://xbettereverydayx.gumroad.com/l/wzidk"))
-check("morning FB: product line removed", "Link in bio" not in fb("morning", "Hook\n\nBuy it. Link in bio.\n\n#x"))
+check("FB: a line about an unknown product is removed", "Link in bio" not in fb("midday", "Hook\n\nBuy it. Link in bio.\n\n#x"))
 
 # ---------------------------------------------------------------- dry run
 MEDIA = [{"id": "1", "caption": "Old caption about something else entirely.", "timestamp": ts(2026, 11, 25, 19, 38),
           "media_type": "IMAGE", "like_count": 1, "comments_count": 0, "permalink": "p"}]
 ns, calls, uploads = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}]}, now=at(23, 30))
-r = ns["publish"](MORNING, "morning", dry_run=True)
+r = ns["publish"](MORNING, "midday", dry_run=True)
 check("dry run: ok and 3 images", r["ok"] and r["stage"] == "dry_run_done" and len(r["images"]) == 3, r)
 check("dry run: no Instagram/Facebook writes", [c[0] for c in calls] == ["INSTAGRAM_GET_IG_USER_MEDIA"])
-p = ns["prepare"]("morning", dry_run=True)
+p = ns["prepare"]("midday", dry_run=True)
 check("prepare dry run: not stopped, 1 recent post", p["stop"] is False and len(p["recent_posts"]) == 1, p)
 ns, calls, _ = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}]}, now=at(23, 30))
-p = ns["prepare"]("morning")
+p = ns["prepare"]("midday")
 check("prepare at 23:30: stop (late)", p["stop"] and "late" in p["reasons"][0], p)
-r = ns["publish"](MORNING, "morning")
+r = ns["publish"](MORNING, "midday")
 check("publish at 23:30 without dry run: blocked by guard", r["stage"] == "guard" and not r["ok"], r)
 check("... and nothing written", all(c[0] == "INSTAGRAM_GET_IG_USER_MEDIA" for c in calls))
 
-# ---------------------------------------------------------------- real morning run (faked API)
+# ---------------------------------------------------------------- real midday carousel run (faked API)
 OK_SCRIPT = {
     "INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}],
     "INSTAGRAM_CREATE_CAROUSEL_CONTAINER": [{"id": "c1"}],
@@ -150,8 +159,8 @@ OK_SCRIPT = {
                                 "children": {"data": [{"id": "a"}, {"id": "b"}, {"id": "c"}]}}],
     "FACEBOOK_CREATE_MULTI_PHOTO_POST": [{"post_id": "fb1"}],
 }
-ns, calls, _ = load({k: list(v) for k, v in OK_SCRIPT.items()}, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load({k: list(v) for k, v in OK_SCRIPT.items()}, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 names = [c[0] for c in calls]
 check("morning: ok, done, permalink", r["ok"] and r["stage"] == "done" and r["permalink"] == "https://ig/p/m1", r)
 check("morning: exactly one container, one publish, one FB post",
@@ -173,8 +182,8 @@ s = {k: list(v) for k, v in OK_SCRIPT.items()}
 s["INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH"] = [RuntimeError("timeout")]
 s["INSTAGRAM_GET_IG_USER_MEDIA"] = [{"data": MEDIA}, {"data": [{"id": "m1", "timestamp": dt.datetime.now(
     dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+0000")}]}]
-ns, calls, _ = load(s, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 names = [c[0] for c in calls]
 check("publish error + post found: no retry", r["ok"] and names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 1
       and "went out" in " ".join(r["warnings"]), (r, names))
@@ -183,8 +192,8 @@ check("publish error + post found: no retry", r["ok"] and names.count("INSTAGRAM
 s = {k: list(v) for k, v in OK_SCRIPT.items()}
 s["INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH"] = [RuntimeError("500"), {"id": "m1"}]
 s["INSTAGRAM_GET_IG_USER_MEDIA"] = [{"data": MEDIA}, {"data": MEDIA}]
-ns, calls, _ = load(s, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 names = [c[0] for c in calls]
 check("publish error + nothing out: exactly one retry", r["ok"]
       and names.count("INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH") == 2, (r, names))
@@ -192,8 +201,8 @@ check("publish error + nothing out: exactly one retry", r["ok"]
 # container ERROR -> nothing published
 s = {k: list(v) for k, v in OK_SCRIPT.items()}
 s["INSTAGRAM_GET_POST_STATUS"] = [{"status_code": "ERROR"}]
-ns, calls, _ = load(s, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 check("container ERROR: not published", not r["ok"] and r["stage"] == "instagram"
       and "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH" not in [c[0] for c in calls], r)
 
@@ -202,8 +211,8 @@ s = {k: list(v) for k, v in OK_SCRIPT.items()}
 s["FACEBOOK_CREATE_MULTI_PHOTO_POST"] = [RuntimeError("bad url")]
 s["FACEBOOK_GET_PAGE_POSTS"] = [{"data": [{"id": "fbX", "created_time": dt.datetime.now(dt.timezone.utc).strftime(
     "%Y-%m-%dT%H:%M:%S+0000")}]}]
-ns, calls, _ = load(s, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 check("FB error + post found: no second FB post", r["ok"] and r["facebook"].startswith("ok (posted despite")
       and [c[0] for c in calls].count("FACEBOOK_CREATE_MULTI_PHOTO_POST") == 1, r)
 
@@ -211,24 +220,24 @@ check("FB error + post found: no second FB post", r["ok"] and r["facebook"].star
 s = {k: list(v) for k, v in OK_SCRIPT.items()}
 s["FACEBOOK_CREATE_MULTI_PHOTO_POST"] = [RuntimeError("bad url"), RuntimeError("bad url again")]
 s["FACEBOOK_GET_PAGE_POSTS"] = [{"data": []}]
-ns, calls, _ = load(s, now=at(6, 9))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(13, 9))
+r = ns["publish"](MORNING, "midday")
 check("FB fails twice: IG ok, FB FAILED, two attempts", r["ok"] and r["facebook"].startswith("FAILED")
       and [c[0] for c in calls].count("FACEBOOK_CREATE_MULTI_PHOTO_POST") == 2, r)
 
 # quality control failure -> nothing uploaded or posted
 bad = dict(MORNING, slides=MORNING["slides"][:2])
-ns, calls, uploads = load({k: list(v) for k, v in OK_SCRIPT.items()}, now=at(6, 9))
-r = ns["publish"](bad, "morning")
+ns, calls, uploads = load({k: list(v) for k, v in OK_SCRIPT.items()}, now=at(13, 9))
+r = ns["publish"](bad, "midday")
 check("QC failure: stage qc, no upload, no post", r["stage"] == "qc" and not uploads
       and [c[0] for c in calls] == ["INSTAGRAM_GET_IG_USER_MEDIA"], r)
 
 # slot already posted today -> guard
 s = {k: list(v) for k, v in OK_SCRIPT.items()}
-s["INSTAGRAM_GET_IG_USER_MEDIA"] = [{"data": [{"id": "x", "caption": "", "timestamp": ts(2026, 11, 26, 6, 2),
+s["INSTAGRAM_GET_IG_USER_MEDIA"] = [{"data": [{"id": "x", "caption": "", "timestamp": ts(2026, 11, 26, 13, 2),
                                                "permalink": "px"}] + MEDIA}]
-ns, calls, _ = load(s, now=at(7, 30))
-r = ns["publish"](MORNING, "morning")
+ns, calls, _ = load(s, now=at(14, 30))
+r = ns["publish"](MORNING, "midday")
 check("slot already posted today: blocked", r["stage"] == "guard" and not r["ok"], r)
 
 # ---------------------------------------------------------------- real evening run (faked API)
@@ -240,7 +249,7 @@ s = {
     "INSTAGRAM_GET_IG_MEDIA": [{"id": "m2", "media_type": "IMAGE", "permalink": "https://ig/p/m2"}],
     "FACEBOOK_CREATE_PHOTO_POST": [{"id": "1", "post_id": "fb2"}],
 }
-ns, calls, _ = load(s, now=at(19, 36))
+ns, calls, _ = load(s, now=at(20, 6))
 r = ns["publish"](EVENING, "evening")
 ev = next(c for c in calls if c[0] == "INSTAGRAM_POST_IG_USER_MEDIA")
 fbp = next(c for c in calls if c[0] == "FACEBOOK_CREATE_PHOTO_POST")
@@ -249,6 +258,26 @@ check("evening: alt text without asterisks", ev[1]["alt_text"].startswith("Peopl
 check("evening: Instagram keeps 'Link in bio.'", "Link in bio." in ev[1]["caption"])
 check("evening: Facebook gets the Gumroad link, published", "Get it here: https://xbettereverydayx.gumroad.com/l/wzidk"
       in fbp[1]["message"] and fbp[1]["published"] is True and fbp[1]["photo"]["s3key"])
+
+# ---------------------------------------------------------------- real early run (faked API)
+EARLY = {"type": "early", "slides": [{"text": "Discipline is remembering what you *want* when you no longer feel like it."}],
+         "caption": "Discipline is remembering what you want when you no longer feel like it.\n\nFeelings fade by noon. "
+                    "Standards don't.\n\nWhat will you do today even if you don't feel like it?",
+         "hashtags": ["#xbettereverydayx", "#selfdiscipline", "#morningmindset", "#standards", "#consistency"]}
+s = {
+    "INSTAGRAM_GET_IG_USER_MEDIA": [{"data": MEDIA}],
+    "INSTAGRAM_POST_IG_USER_MEDIA": [{"id": "c3"}],
+    "INSTAGRAM_GET_POST_STATUS": [{"status_code": "FINISHED"}],
+    "INSTAGRAM_POST_IG_USER_MEDIA_PUBLISH": [{"id": "m3"}],
+    "INSTAGRAM_GET_IG_MEDIA": [{"id": "m3", "media_type": "IMAGE", "permalink": "https://ig/p/m3"}],
+    "FACEBOOK_CREATE_PHOTO_POST": [{"id": "2", "post_id": "fb3"}],
+}
+ns, calls, _ = load(s, now=at(7, 5))
+r = ns["publish"](EARLY, "early")
+names = [c[0] for c in calls]
+check("early: one quote image on Instagram + Facebook", r["ok"] and r["stage"] == "done"
+      and names.count("INSTAGRAM_POST_IG_USER_MEDIA") == 1 and names.count("FACEBOOK_CREATE_PHOTO_POST") == 1, (r, names))
+check("early: no carousel calls", "INSTAGRAM_CREATE_CAROUSEL_CONTAINER" not in names)
 
 print("\nall passed" if not FAILED else f"\n{len(FAILED)} FAILED: {FAILED}")
 sys.exit(1 if FAILED else 0)

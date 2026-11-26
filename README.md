@@ -1,12 +1,12 @@
 # xBetterEverydayx – content system
 
-Two posts a day on @xbettereverydayx:
+Three posts a day on @xbettereverydayx (since 27/11-2026; the followers are ~1/3 US, ~1/3 Asia/Australia):
 
-| | Morning (06:00) | Evening (19:30) |
-|---|---|---|
-| Format | Carousel, exactly 3 slides | Single image |
-| Structure | Hook → Message → Action | One original quote |
-| Goal | Action | Reflection |
+| | Early (07:00) | Midday (13:00) | Evening (20:00) |
+|---|---|---|---|
+| Format | Single image | Carousel, exactly 3 slides | Single image |
+| Structure | One punchy quote | Hook → Message → Action | One original quote |
+| Audience | Europe morning, Asia midday | US morning, India evening | US afternoon, Europe evening |
 
 ## How it works (v2, 26/11-2026)
 
@@ -16,8 +16,8 @@ Two posts a day on @xbettereverydayx:
    this repo **at a pinned commit, checked by SHA-256**, and calls two functions:
    - `prepare(slot)` - double-post guard + the last 30 posts (short form) for theme and performance choices;
    - `publish(content, slot)` - guard again, render + quality control, upload, Instagram, verify, Facebook.
-3. The safety rules are code, not the model's judgement: publish only in the slot window (morning
-   06:00-08:00, evening 19:30-21:30 Copenhagen time), never if the slot already has a post today or anything
+3. The safety rules are code, not the model's judgement: publish only in the slot window (three posts a day
+   since 27/11-2026: early 07:00, midday 13:00, evening 20:00 - each window 2 h, Copenhagen time), never if the slot already has a post today or anything
    went out in the last 3 hours, never if QC fails, exactly one publish call with a checked retry, Facebook
    only after a verified Instagram post, and `dry_run=True` never writes to Instagram or Facebook.
 

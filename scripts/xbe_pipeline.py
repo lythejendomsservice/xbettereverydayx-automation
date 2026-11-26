@@ -1,6 +1,6 @@
-"""xBetterEverydayx - publishing pipeline for the Composio workbench (v2, 26/11-2026).
+"""xBetterEverydayx - publishing pipeline for the Composio workbench (v2.1, 26/11-2026: three slots).
 
-The two scheduled tasks (morning/evening) load this file and prompts/renderer_inline.py from this repo at a
+The three scheduled tasks (early/midday/evening) load this file and prompts/renderer_inline.py from this repo at a
 PINNED commit, check both against a SHA-256 in the task prompt, and exec them in the workbench. The model only
 writes the text; everything deterministic runs here, in code:
 
@@ -10,7 +10,7 @@ writes the text; everything deterministic runs here, in code:
 Why: the old prompts made the model copy ~15 KB of renderer code and drive ~18 tool calls per post
 (~1.5 USD per run at list price). Now a run needs ~4-6 calls, and the safety rules are enforced by code,
 not by the model's judgement:
-  * publish only inside the slot window (morning 06:00-08:00, evening 19:30-21:30, Europe/Copenhagen);
+  * publish only inside the slot window (early 07:00, midday 13:00, evening 20:00 - each +2 h, Copenhagen);
   * never if this slot already has a post today, or anything was posted in the last 3 hours;
   * never if quality control fails;
   * exactly one Instagram publish call - after an error it checks whether the post went out before it
@@ -35,15 +35,22 @@ IG_ACCOUNT = "instagram_stylet-manful"
 IG_USER_ID = "30053245364263763"
 FB_ACCOUNT = "facebook_stoff-riksha"
 FB_PAGE_ID = "1033703049835931"  # Page "XBetterEverydayx" - never post anywhere else
-GUMROAD_URL = "https://xbettereverydayx.gumroad.com/l/wzidk"
+# Products that a caption may point to with "... Link in bio." - on Facebook that line gets the real link.
+PRODUCTS = {
+    "circle audit": "https://xbettereverydayx.gumroad.com/l/wzidk",
+}
+GUMROAD_URL = PRODUCTS["circle audit"]
 REPO_RAW = "https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/"
 ASSET_DIR = "/tmp/xbe_assets"
 ASSET_FILES = ["brand/x_mark.png", "brand/wordmark.png", "fonts/Montserrat-ExtraBold.ttf",
                "fonts/Montserrat-Black.ttf", "fonts/Montserrat-SemiBold.ttf", "fonts/PlayfairDisplay.ttf"]
 OUT_DIR = "/tmp/xbe_out"
+# Three posts a day (Simon 26/11-2026: "3 posts om dagen ... 7-13-20"). "render" is the renderer's content type:
+# "morning" = 3-slide carousel, "evening" = one quote image.
 SLOTS = {
-    "morning": {"start": (6, 0), "media_type": "CAROUSEL_ALBUM", "images": 3},
-    "evening": {"start": (19, 30), "media_type": "IMAGE", "images": 1},
+    "early": {"start": (7, 0), "media_type": "IMAGE", "images": 1, "render": "evening"},
+    "midday": {"start": (13, 0), "media_type": "CAROUSEL_ALBUM", "images": 3, "render": "morning"},
+    "evening": {"start": (20, 0), "media_type": "IMAGE", "images": 1, "render": "evening"},
 }
 WINDOW = _dt.timedelta(hours=2)        # a run that starts later than this is a late/catch-up run
 EARLY = _dt.timedelta(minutes=10)      # tolerance before the slot time
@@ -82,12 +89,12 @@ def parse_ts(ts):
 
 
 def slot_of(local_dt):
-    """Morning posts go out before 12:00, evening posts after 15:00 (Copenhagen time)."""
-    if local_dt.hour < 12:
-        return "morning"
-    if local_dt.hour >= 15:
-        return "evening"
-    return "other"
+    """Which slot a post (Copenhagen time) belongs to: before 10:00 early, 10-17 midday, from 17:00 evening."""
+    if local_dt.hour < 10:
+        return "early"
+    if local_dt.hour < 17:
+        return "midday"
+    return "evening"
 
 
 # ---------------------------------------------------------------- Composio helpers
@@ -248,7 +255,7 @@ def _just_published():
 
 
 def _publish_instagram(slot, caption, up, alt_text):
-    if slot == "morning":
+    if SLOTS[slot]["media_type"] == "CAROUSEL_ALBUM":
         created = _call("INSTAGRAM_CREATE_CAROUSEL_CONTAINER", {
             "ig_user_id": IG_USER_ID, "caption": caption,
             "child_image_files": [{"name": u["name"], "mimetype": "image/jpeg", "s3key": u["s3key"]} for u in up],
@@ -274,14 +281,17 @@ def _publish_instagram(slot, caption, up, alt_text):
 # ---------------------------------------------------------------- Facebook
 
 def fb_caption(slot, caption):
-    """Morning: drop a 'Link in bio.' product line. Evening: make it a clickable Gumroad link."""
-    lines = caption.split("\n")
-    if slot == "morning":
-        lines = [ln for ln in lines if not ln.rstrip().endswith("Link in bio.")]
-    else:
-        lines = [ln.replace("Link in bio.", f"Get it here: {GUMROAD_URL}") if ln.rstrip().endswith("Link in bio.")
-                 else ln for ln in lines]
-    return "\n".join(lines)
+    """A '... Link in bio.' product line gets the product's Gumroad link on Facebook (links are clickable there);
+    a line about an unknown product is dropped on Facebook."""
+    out = []
+    for ln in caption.split("\n"):
+        if ln.rstrip().endswith("Link in bio."):
+            url = next((u for name, u in PRODUCTS.items() if name in ln.lower()), None)
+            if url:
+                out.append(ln.replace("Link in bio.", f"Get it here: {url}"))
+            continue
+        out.append(ln)
+    return "\n".join(out)
 
 
 def _fb_just_posted():
@@ -297,7 +307,7 @@ def _publish_facebook(slot, caption, up):
     message = fb_caption(slot, caption)
 
     def attempt():
-        if slot == "morning":
+        if SLOTS[slot]["media_type"] == "CAROUSEL_ALBUM":
             return _call("FACEBOOK_CREATE_MULTI_PHOTO_POST", {
                 "page_id": FB_PAGE_ID, "message": message, "photo_urls": [u["url"] for u in up],
             }, FB_ACCOUNT)
@@ -325,9 +335,7 @@ def publish(content, slot, dry_run=False):
     out = {"slot": slot, "dry_run": dry_run, "ok": False, "stage": "setup", "errors": [], "warnings": []}
     try:
         assert slot in SLOTS, f"unknown slot {slot!r}"
-        if content.get("type") != slot:
-            out.update(stage="qc", errors=[f"content 'type' must be '{slot}'"])
-            return out
+        content = dict(content, type=SLOTS[slot]["render"])  # the renderer knows "morning" (carousel) / "evening" (quote)
         ensure_assets(globals().get("XBE_COMMIT", "main"))
 
         out["stage"] = "guard"  # again, right before posting: protects against a second run
@@ -370,7 +378,7 @@ def publish(content, slot, dry_run=False):
                   IG_ACCOUNT)
         out["permalink"] = v.get("permalink")
         children = len(_items(v.get("children")))
-        if v.get("media_type") != SLOTS[slot]["media_type"] or (slot == "morning" and children != 3):
+        if v.get("media_type") != SLOTS[slot]["media_type"] or (SLOTS[slot]["images"] == 3 and children != 3):
             out["warnings"].append(f"verify: media_type={v.get('media_type')}, children={children}")
 
         out["stage"] = "facebook"

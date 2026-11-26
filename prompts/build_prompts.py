@@ -32,9 +32,21 @@ for key, value in hashes.items():
 tpl = open(os.path.join(HERE, "task_template.md")).read().replace("@@BOOTSTRAP@@", boot)
 
 SLOTS = {
-    "morning": {
-        "SLOT_RULES": """MORNING = Instagram carousel with EXACTLY 3 slides that form ONE coherent message.
-Focus: motivation, discipline, mindset, taking action. Goal: start the day with intention.
+    "early": {
+        "SLOT_RULES": """EARLY = ONE single image with ONE original quote of 5-25 words that stands alone without
+explanation. It goes out at 07:00 Copenhagen time - the first post of the day for Europe and midday
+for India, Asia and Australia. Short and punchy: discipline, standards, action, consistency,
+self-respect, mental strength. Use "style":"sans" (bold uppercase) by default; "serif" only for a
+quieter, reflective line. Never the theme of the last midday carousel or evening quote.""",
+        "CAPTION_END": "one short question that invites a comment",
+        "CTA_RULES": "Product promotion: none in early posts. Never mention products, links or sales.",
+        "FB_NOTE": "Facebook gets the same text.",
+    },
+    "midday": {
+        "SLOT_RULES": """MIDDAY = Instagram carousel with EXACTLY 3 slides that form ONE coherent message.
+It goes out at 13:00 Copenhagen time = early morning in the US, where a third of the followers
+live, and evening in India. Focus: motivation, discipline, mindset, taking action. Goal: start
+the day with intention.
 - Slide 1 THE HOOK: 5-12 words, stops the scroll, creates curiosity or emotional impact,
   makes people swipe. (Rendered as bold uppercase sans.)
 - Slide 2 THE MESSAGE: 1-3 short sentences (max ~40 words) expanding the hook; the reader
@@ -45,9 +57,9 @@ Slide 1 = interest, slide 2 = recognition, slide 3 = action. Never three unrelat
 never the same sentence on two slides.
 Themes: discipline, responsibility, time, ambition, consistency, procrastination, bad habits,
 accountability.""",
-        "CAPTION_END": "one natural engagement question about today",
-        "CTA_RULES": "Product promotion: none in morning posts. Never mention products, links or sales.",
-        "FB_NOTE": "Facebook gets the same text (the code removes a \"Link in bio.\" line, which the morning never has).",
+        "CAPTION_END": 'one natural engagement question about today',
+        "CTA_RULES": "Product promotion: none in midday posts. Never mention products, links or sales.",
+        "FB_NOTE": "Facebook gets the same text.",
     },
     "evening": {
         "SLOT_RULES": """EVENING = ONE single image with ONE original quote of 5-25 words that stands
@@ -56,7 +68,7 @@ Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipl
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use
 "style":"sans" only for a hard-hitting, punchy line.""",
-        "CAPTION_END": "an invitation to reflect or comment (a question is fine)",
+        "CAPTION_END": 'an invitation to reflect or comment (a question is fine)',
         "CTA_RULES": """Product promotion (Gumroad) - ONLY on Wednesday (weekday 3) and Sunday (weekday 7):
 - Pick the quote topic from relationships, loyalty, betrayal, boundaries or self-respect.
 - Write the caption as usual, then end it with ONE soft, natural line pointing to the digital
@@ -65,7 +77,7 @@ character, consistency. Emotional depth, truth, relatability. Default style seri
   really in your corner? The Circle Audit helps you find out. Link in bio."
 - Never a hard sell, never prices, never URLs, never more than one product line.
 On all other days: no product mention at all.""",
-        "FB_NOTE": "Facebook gets the same text, with \"Link in bio.\" turned into the Gumroad link by the code.",
+        "FB_NOTE": 'Facebook gets the same text, with "Link in bio." turned into the Gumroad link by the code.',
     },
 }
 
