@@ -15,9 +15,10 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
+XBE_COMMIT = "937ec629f03d845a8ed4995b17f214eba4b7de9d"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
+             "scripts/xbe_reel.py": "1fd66f5cf8e6931bf3206ea6170f575331ea365bcb6c65ded0ba34638a329621",
+             "scripts/xbe_pipeline.py": "e0f94ec43b42d4739bbc4a4b6aa8e72d02ef7d4d4dc4f8831bd12d4a14f940f6"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -83,9 +84,10 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
+XBE_COMMIT = "937ec629f03d845a8ed4995b17f214eba4b7de9d"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
+             "scripts/xbe_reel.py": "1fd66f5cf8e6931bf3206ea6170f575331ea365bcb6c65ded0ba34638a329621",
+             "scripts/xbe_pipeline.py": "e0f94ec43b42d4739bbc4a4b6aa8e72d02ef7d4d4dc4f8831bd12d4a14f940f6"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()

@@ -4,8 +4,8 @@ Three posts a day on @xbettereverydayx (since 27/11-2026; the followers are ~1/3
 
 | | Early (07:00) | Midday (13:00) | Evening (20:00) |
 |---|---|---|---|
-| Format | Single image | Carousel, exactly 3 slides | Single image |
-| Structure | One punchy quote | Hook → Message → Action | One original quote |
+| Format | Single image | Carousel, exactly 3 slides | Reel: 9:16 video, 6-13 s, original sound (since 27/11-2026) |
+| Structure | One punchy quote | Hook → Message → Action | One original quote, shown word by word |
 | Audience | Europe morning, Asia midday | US morning, India evening | US afternoon, Europe evening |
 
 ## How it works (v2, 26/11-2026)
@@ -15,10 +15,15 @@ Three posts a day on @xbettereverydayx (since 27/11-2026; the followers are ~1/3
    the slot (a routine created from a Claude session can no longer get Composio access, so the two quote slots
    share the routine that has it). `early.md`/`evening.md` are the same slots for separate routines. All prompts
    are built from `prompts/task_template.md` with `python prompts/build_prompts.py <commit>`.
-2. In the Composio workbench the task loads `prompts/renderer_inline.py` and `scripts/xbe_pipeline.py` from
-   this repo **at a pinned commit, checked by SHA-256**, and calls two functions:
+2. In the Composio workbench the task loads `prompts/renderer_inline.py`, `scripts/xbe_reel.py` and
+   `scripts/xbe_pipeline.py` from this repo **at a pinned commit, checked by SHA-256**, and calls:
    - `prepare(slot)` - double-post guard + the last 30 posts (short form) for theme and performance choices;
-   - `publish(content, slot)` - guard again, render + quality control, upload, Instagram, verify, Facebook.
+   - `publish(content, slot)` - guard again, render + quality control, upload, Instagram, verify, Facebook;
+   - `finish(slot)` - Reels only: Instagram needs 30-120 s to process a video and a workbench cell may run
+     180 s, so `publish` can stop at `processing`/`facebook_pending` and `finish` carries on from the saved state.
+   The evening Reel (`scripts/xbe_reel.py`, Simon 26/11-2026): the quote fades in word by word with the brand
+   fonts, red accents, X watermark and wordmark; the sound is generated with numpy (calm chords for phone
+   speakers - no third-party music); ffmpeg is the imageio-ffmpeg wheel pinned by version and SHA-256.
 3. The safety rules are code, not the model's judgement: publish only in the slot window (three posts a day
    since 27/11-2026: early 07:00, midday 13:00, evening 20:00 - each window 2 h, Copenhagen time), never if the slot already has a post today or anything
    went out in the last 3 hours, never if QC fails, exactly one publish call with a checked retry, Facebook

@@ -15,9 +15,10 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
+XBE_COMMIT = "937ec629f03d845a8ed4995b17f214eba4b7de9d"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
+             "scripts/xbe_reel.py": "1fd66f5cf8e6931bf3206ea6170f575331ea365bcb6c65ded0ba34638a329621",
+             "scripts/xbe_pipeline.py": "e0f94ec43b42d4739bbc4a4b6aa8e72d02ef7d4d4dc4f8831bd12d4a14f940f6"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -60,6 +61,8 @@ Topics: self-respect, loyalty, relationships, betrayal, personal growth, discipl
 mortality, ambition, comfort zones, life lessons, boundaries, mental strength, accountability,
 character, consistency. Emotional depth, truth, relatability. Default style serif; use
 "style":"sans" only for a hard-hitting, punchy line.
+The evening quote is posted as a Reel: the code shows it word by word over original background sound
+(6-13 seconds) and holds it at the end. Write it so it builds to its last words; 8-20 words works best.
 
 Mark 1-4 key words per slide with *asterisks* - they are drawn in brand red.
 Caption: concise English, first line = the hook/quote, then 1-2 short lines, then
@@ -82,9 +85,10 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "4f58c2855d39e1afc830b1582cb72adac7eea179"
+XBE_COMMIT = "937ec629f03d845a8ed4995b17f214eba4b7de9d"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
-             "scripts/xbe_pipeline.py": "de2cdaacd14d30b9905bb17bc81bb36a5eddd7b0bafb056466c57dd148f8733f"}
+             "scripts/xbe_reel.py": "1fd66f5cf8e6931bf3206ea6170f575331ea365bcb6c65ded0ba34638a329621",
+             "scripts/xbe_pipeline.py": "e0f94ec43b42d4739bbc4a4b6aa8e72d02ef7d4d4dc4f8831bd12d4a14f940f6"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -100,13 +104,35 @@ print(json.dumps(r, indent=1))
 CONTENT format: {"type":"evening","slides":[{"text":"..."}...],"caption":"...","hashtags":[...]}
 (optional per slide "style":"sans"|"serif"; optional "theme":"light" at most once a week -
 black is the primary identity.) Instagram gets the caption + a blank line + the hashtags.
-Facebook gets the same text, with "Link in bio." turned into the Gumroad link by the code.
+Facebook gets the Reel as a video with the same text, with "Link in bio." turned into the
+Gumroad link by the code.
 
 Read r:
 - stage "qc": quality control rejected the text. Fix exactly what the errors say and run the cell
   again (max 3 attempts in total). Still failing -> STOP, send a PushNotification "xBetterEverydayx
   evening: quality control failed - nothing posted" with the errors.
 - stage "guard": a post appeared in the meantime. STOP quietly.
+- stage "processing" or "facebook_pending" (evening Reel only): the Reel is uploaded and Instagram or
+  Facebook needs more time. Run this cell and read its result the same way - repeat while the stage is
+  "processing" or "facebook_pending", at most 4 times; still not done after 4 runs: send a PushNotification
+  "xBetterEverydayx evening: the Reel is not finished after 4 tries (<stage>)" and STOP:
+```python
+import hashlib, json, urllib.request
+XBE_COMMIT = "937ec629f03d845a8ed4995b17f214eba4b7de9d"
+XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
+             "scripts/xbe_reel.py": "1fd66f5cf8e6931bf3206ea6170f575331ea365bcb6c65ded0ba34638a329621",
+             "scripts/xbe_pipeline.py": "e0f94ec43b42d4739bbc4a4b6aa8e72d02ef7d4d4dc4f8831bd12d4a14f940f6"}
+if globals().get("XBE_LOADED") != XBE_COMMIT:
+    for _p, _h in XBE_FILES.items():
+        _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
+        if hashlib.sha256(_b).hexdigest() != _h:
+            raise SystemExit("HASH MISMATCH: " + _p + " - stop, publish nothing")
+        exec(_b.decode("utf-8"))
+    XBE_LOADED = XBE_COMMIT
+SLOT = "evening"
+print(json.dumps(finish(SLOT), indent=1))
+```
+- stage "lost" (from finish): run the publish cell once more - the guard stops it if the Reel is already out.
 - "ok" is true: the Instagram post is out. Never run publish() again in this run. If "facebook"
   starts with "FAILED", send a PushNotification "xBetterEverydayx: Instagram OK, Facebook failed"
   with the error. If a warning starts with "verify", send a PushNotification with it.

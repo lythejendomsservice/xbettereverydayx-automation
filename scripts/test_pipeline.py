@@ -423,7 +423,8 @@ def slot_lines(name):
 
 
 lines, text = slot_lines("quote.md")
-check("quote.md: the same slot line in both cells", len(lines) == 2 and lines[0] == lines[1], lines)
+check("quote.md: the same slot line in all three cells (load, publish, finish)", len(lines) == 3
+      and len(set(lines)) == 1 and "finish(SLOT)" in text and "@@" not in text, lines)
 check("quote.md: no unfilled placeholders", "{{" not in text and "@@" not in text)
 
 
@@ -440,9 +441,13 @@ ns, _, _ = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": yesterday_evening}]}, 
 check("quote.md at 07:05: prepare(early) says go", ns["prepare"](quote_slot(7, 5))["stop"] is False)
 ns, _, _ = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": today_two}]}, now=at(20, 5))
 check("quote.md at 20:05: prepare(evening) says go", ns["prepare"](quote_slot(20, 5))["stop"] is False)
-for name, slot in [("midday.md", "midday"), ("early.md", "early"), ("evening.md", "evening")]:
-    lines_s, _ = slot_lines(name)
-    check(f"{name}: SLOT = \"{slot}\" in both cells", lines_s == [f'SLOT = "{slot}"'] * 2, lines_s)
+for name, slot, cells in [("midday.md", "midday", 2), ("early.md", "early", 2), ("evening.md", "evening", 3)]:
+    lines_s, text_s = slot_lines(name)
+    check(f"{name}: SLOT = \"{slot}\" in all {cells} cells, finish step only for the Reel",
+          lines_s == [f'SLOT = "{slot}"'] * cells and ("finish(SLOT)" in text_s) == (cells == 3), lines_s)
+for name in ("early.md", "midday.md", "evening.md", "quote.md"):
+    text_s = open(os.path.join(ROOT, "prompts", name)).read()
+    check(f"{name}: pins the Reel module too", text_s.count('"scripts/xbe_reel.py"') == text_s.count("XBE_COMMIT = ") >= 2)
 
 print("\nall passed" if not FAILED else f"\n{len(FAILED)} FAILED: {FAILED}")
 sys.exit(1 if FAILED else 0)
