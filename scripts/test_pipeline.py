@@ -279,5 +279,33 @@ check("early: one quote image on Instagram + Facebook", r["ok"] and r["stage"] =
       and names.count("INSTAGRAM_POST_IG_USER_MEDIA") == 1 and names.count("FACEBOOK_CREATE_PHOTO_POST") == 1, (r, names))
 check("early: no carousel calls", "INSTAGRAM_CREATE_CAROUSEL_CONTAINER" not in names)
 
+# ---------------------------------------------------------------- prompts: which slot each routine posts
+def slot_lines(name):
+    text = open(os.path.join(ROOT, "prompts", name)).read()
+    return [ln for ln in text.splitlines() if ln.startswith("SLOT = ")], text
+
+
+lines, text = slot_lines("quote.md")
+check("quote.md: the same slot line in both cells", len(lines) == 2 and lines[0] == lines[1], lines)
+check("quote.md: no unfilled placeholders", "{{" not in text and "@@" not in text)
+
+
+def quote_slot(h, mi):
+    ns_q = {"now_cph": lambda: at(h, mi)}
+    exec(lines[0], ns_q)
+    return ns_q["SLOT"]
+
+
+check("quote.md: 06:55 and 07:05 -> early, 20:05 -> evening",
+      [quote_slot(6, 55), quote_slot(7, 5), quote_slot(20, 5)] == ["early", "early", "evening"])
+check("quote.md: split at 14:00", [quote_slot(13, 59), quote_slot(14, 0)] == ["early", "evening"])
+ns, _, _ = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": yesterday_evening}]}, now=at(7, 5))
+check("quote.md at 07:05: prepare(early) says go", ns["prepare"](quote_slot(7, 5))["stop"] is False)
+ns, _, _ = load({"INSTAGRAM_GET_IG_USER_MEDIA": [{"data": today_two}]}, now=at(20, 5))
+check("quote.md at 20:05: prepare(evening) says go", ns["prepare"](quote_slot(20, 5))["stop"] is False)
+for name, slot in [("midday.md", "midday"), ("early.md", "early"), ("evening.md", "evening")]:
+    lines_s, _ = slot_lines(name)
+    check(f"{name}: SLOT = \"{slot}\" in both cells", lines_s == [f'SLOT = "{slot}"'] * 2, lines_s)
+
 print("\nall passed" if not FAILED else f"\n{len(FAILED)} FAILED: {FAILED}")
 sys.exit(1 if FAILED else 0)

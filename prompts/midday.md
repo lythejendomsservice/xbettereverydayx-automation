@@ -25,7 +25,8 @@ if globals().get("XBE_LOADED") != XBE_COMMIT:
             raise SystemExit("HASH MISMATCH: " + _p + " - stop, publish nothing")
         exec(_b.decode("utf-8"))
     XBE_LOADED = XBE_COMMIT
-print(json.dumps(prepare("midday"), indent=1))
+SLOT = "midday"
+print(json.dumps(prepare(SLOT), indent=1))
 ```
 - The cell fails (download, hash mismatch, anything else): STOP. Publish nothing. Send a
   PushNotification "xBetterEverydayx midday: the pipeline could not load - nothing posted" with
@@ -92,8 +93,9 @@ if globals().get("XBE_LOADED") != XBE_COMMIT:
             raise SystemExit("HASH MISMATCH: " + _p + " - stop, publish nothing")
         exec(_b.decode("utf-8"))
     XBE_LOADED = XBE_COMMIT
+SLOT = "midday"
 CONTENT = {...}            # your JSON from step 2
-r = publish(CONTENT, "midday")
+r = publish(CONTENT, SLOT)
 print(json.dumps(r, indent=1))
 ```
 CONTENT format: {"type":"midday","slides":[{"text":"..."}...],"caption":"...","hashtags":[...]}
@@ -115,6 +117,6 @@ Read r:
 ## 4. Finish
 On success: no notification. Do not send emails.
 
-DRY RUN - only if this run's extra message says DRY RUN: call prepare("midday", dry_run=True) and
-publish(CONTENT, "midday", dry_run=True) instead. Nothing is posted (the code makes sure of it).
+DRY RUN - only if this run's extra message says DRY RUN: call prepare(SLOT, dry_run=True) and
+publish(CONTENT, SLOT, dry_run=True) instead. Nothing is posted (the code makes sure of it).
 Report the result and the image links, and send no notification.

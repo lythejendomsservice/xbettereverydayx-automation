@@ -10,8 +10,11 @@ Three posts a day on @xbettereverydayx (since 27/11-2026; the followers are ~1/3
 
 ## How it works (v2, 26/11-2026)
 
-1. **Two scheduled Claude tasks** (claude.ai) write the day's text, caption and hashtags. The prompts are
-   built from `prompts/task_template.md` with `python prompts/build_prompts.py <commit>`.
+1. **Two scheduled Claude routines** (claude.ai) write the day's text, caption and hashtags:
+   13:00 runs `prompts/midday.md`; 07:00 and 20:00 are ONE routine running `prompts/quote.md` - the clock picks
+   the slot (a routine created from a Claude session can no longer get Composio access, so the two quote slots
+   share the routine that has it). `early.md`/`evening.md` are the same slots for separate routines. All prompts
+   are built from `prompts/task_template.md` with `python prompts/build_prompts.py <commit>`.
 2. In the Composio workbench the task loads `prompts/renderer_inline.py` and `scripts/xbe_pipeline.py` from
    this repo **at a pinned commit, checked by SHA-256**, and calls two functions:
    - `prepare(slot)` - double-post guard + the last 30 posts (short form) for theme and performance choices;

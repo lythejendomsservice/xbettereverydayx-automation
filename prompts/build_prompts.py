@@ -1,5 +1,6 @@
-"""Builds the scheduled-task prompts (prompts/morning.md, prompts/evening.md) from task_template.md,
-so both tasks share one set of rules.
+"""Builds the scheduled-task prompts from task_template.md, so all slots share one set of rules:
+prompts/midday.md (13:00 routine), prompts/quote.md (one routine at 07:00 and 20:00 - the clock picks the slot)
+and prompts/early.md + prompts/evening.md (the same two slots, for separate routines if they get their own).
 
 v2 (26/11-2026): the renderer and the publishing steps are no longer copied into the prompt. The task loads
 prompts/renderer_inline.py and scripts/xbe_pipeline.py at a PINNED commit and checks their SHA-256:
@@ -81,11 +82,37 @@ On all other days: no product mention at all.""",
     },
 }
 
-for slot, parts in SLOTS.items():
-    text = tpl.replace("{{SLOT}}", slot)
+
+
+def render(name, slot_label, parts):
+    text = tpl.replace("{{SLOT}}", slot_label)
     for k, v in parts.items():
         text = text.replace("{{" + k + "}}", v)
-    assert "{{" not in text, f"unfilled placeholder in {slot}"
-    with open(os.path.join(HERE, f"{slot}.md"), "w") as f:
+    assert "{{" not in text, f"unfilled placeholder in {name}"
+    with open(os.path.join(HERE, f"{name}.md"), "w") as f:
         f.write(text)
-    print(slot, len(text), "chars")
+    print(name, len(text), "chars")
+
+
+for slot, parts in SLOTS.items():
+    render(slot, slot, dict(parts,
+                            SLOT_HEADER=f"{slot}  (early 07:00 | midday 13:00 | evening 20:00)",
+                            SLOT_CODE=f'SLOT = "{slot}"',
+                            SLOT_NOTE=""))
+
+# 26/11-2026: a routine created from a session without connector grants gets no Composio access, so the two
+# single-image slots share the routine that has it. The clock decides the slot in BOTH cells (a run takes
+# minutes and fires at 07:00 or 20:00, so the two cells always agree); the slot windows in the code still apply.
+E, V = SLOTS["early"], SLOTS["evening"]
+_cta = V["CTA_RULES"].replace("Product promotion (Gumroad) - ONLY", "Evening posts - product promotion (Gumroad) ONLY", 1)
+assert _cta != V["CTA_RULES"]
+render("quote", "<slot>", {
+    "SLOT_HEADER": "early at 07:00 or evening at 20:00 - this routine runs at both times; step 1 prints the slot",
+    "SLOT_CODE": 'SLOT = "early" if now_cph().hour < 14 else "evening"  # this routine runs at 07:00 and 20:00',
+    "SLOT_NOTE": '- "slot" is early or evening - the clock decides. Below, <slot> means that slot.\n',
+    "SLOT_RULES": "Write for <slot> only, with the rules for that slot:\n\n" + E["SLOT_RULES"] + "\n\n" + V["SLOT_RULES"],
+    "CAPTION_END": "one short question that invites a comment (early), or an invitation to reflect or comment -\n"
+                   "a question is fine (evening)",
+    "CTA_RULES": "Early posts - no product promotion: never mention products, links or sales.\n" + _cta,
+    "FB_NOTE": V["FB_NOTE"],
+})
