@@ -15,8 +15,8 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "588a915a779bbf8edbc2d09fada1d226555f28e4"
-XBE_FILES = {"prompts/renderer_inline.py": "1fe5d7a059254642d3fbe78999f6c73d6201c7194ebad94de4955371fdbd7c04",
+XBE_COMMIT = "36feb8438274267067256e9d5cec03c742c6da09"
+XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_pipeline.py": "135f162438f0cbf7e2dc1ab0344fab0a7e1353dc6df0ae8bdcc6d8f2a3613414"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
@@ -80,8 +80,8 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "588a915a779bbf8edbc2d09fada1d226555f28e4"
-XBE_FILES = {"prompts/renderer_inline.py": "1fe5d7a059254642d3fbe78999f6c73d6201c7194ebad94de4955371fdbd7c04",
+XBE_COMMIT = "36feb8438274267067256e9d5cec03c742c6da09"
+XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_pipeline.py": "135f162438f0cbf7e2dc1ab0344fab0a7e1353dc6df0ae8bdcc6d8f2a3613414"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
