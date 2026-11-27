@@ -159,6 +159,18 @@ fb = ns["fb_caption"]
 check("evening FB: the Circle Audit line gets its Gumroad link",
       fb("evening", EVENING["caption"]).endswith("Get it here: https://xbettereverydayx.gumroad.com/l/wzidk"))
 check("FB: a line about an unknown product is removed", "Link in bio" not in fb("midday", "Hook\n\nBuy it. Link in bio.\n\n#x"))
+DR_LINE = "Want a plan for the next 30 days? The 30-Day Discipline Reset gives you one hard thing a day. Link in bio."
+check("FB: the Discipline Reset line gets its Gumroad link",
+      fb("midday", "Hook\n\n" + DR_LINE).endswith("Get it here: https://xbettereverydayx.gumroad.com/l/discipline-reset"))
+igc = ns["ig_caption"]
+cap = "Hook line\n\nShort line.\n\n" + DR_LINE + "\n\n#xbettereverydayx #discipline"
+check("IG: the product line stays when the bio is the store", igc(cap, "https://xbettereverydayx.gumroad.com/")[0] == cap)
+check("IG: ... or the product itself", igc(cap, "https://xbettereverydayx.gumroad.com/l/discipline-reset")[0] == cap)
+txt, dropped = igc(cap, "https://xbettereverydayx.gumroad.com/l/mzopo")
+check("IG: the product line goes when the bio leads to another product, no empty gap left",
+      DR_LINE not in txt and dropped == [DR_LINE] and "\n\n\n" not in txt and txt.endswith("#discipline"), repr(txt))
+check("IG: a Circle Audit line goes when the bio is the Discipline Reset",
+      igc(EVENING["caption"], "https://xbettereverydayx.gumroad.com/l/discipline-reset")[1] != [])
 
 # ---------------------------------------------------------------- dry run
 MEDIA = [{"id": "1", "caption": "Old caption about something else entirely.", "timestamp": ts(2026, 11, 25, 19, 38),
@@ -252,6 +264,20 @@ r = ns["publish"](MORNING, "midday")
 check("FB fails twice: IG ok, FB FAILED, two attempts", r["ok"] and r["facebook"].startswith("FAILED")
       and [c[0] for c in calls].count("FACEBOOK_CREATE_MULTI_PHOTO_POST") == 2, r)
 
+# Friday promo while the bio link points to another product: Instagram without the line, Facebook with the link
+PROMO = dict(MORNING, caption=MORNING["caption"] + "\n\n" + DR_LINE)
+s = {k: list(v) for k, v in OK_SCRIPT.items()}
+s["INSTAGRAM_GET_USER_INFO"] = [{"website": "https://xbettereverydayx.gumroad.com/l/mzopo"}]
+ns, calls, _ = load(s, now=at(13, 5))
+r = ns["publish"](PROMO, "midday")
+cc = next(c for c in calls if c[0] == "INSTAGRAM_CREATE_CAROUSEL_CONTAINER")
+fbm = next(c for c in calls if c[0] == "FACEBOOK_CREATE_MULTI_PHOTO_POST")
+check("promo + wrong bio: posted, Instagram caption without the product line",
+      r["ok"] and DR_LINE not in cc[1]["caption"] and cc[1]["caption"].endswith("#mindsetshift"), cc[1]["caption"][-160:])
+check("promo + wrong bio: Facebook gets the direct product link, and a warning says why",
+      "Get it here: https://xbettereverydayx.gumroad.com/l/discipline-reset" in fbm[1]["message"]
+      and any(w.startswith("bio link does not lead") for w in r["warnings"]), r["warnings"])
+
 # quality control failure -> nothing uploaded or posted
 bad = dict(MORNING, slides=MORNING["slides"][:2])
 ns, calls, uploads = load({k: list(v) for k, v in OK_SCRIPT.items()}, now=at(13, 9))
@@ -277,6 +303,7 @@ def reel_script(**over):
         "INSTAGRAM_GET_IG_MEDIA": [{"id": "m9", "media_type": "VIDEO", "media_product_type": "REELS",
                                     "permalink": "https://ig/reel/m9"}],
         "FACEBOOK_CREATE_VIDEO_POST": [{"id": "v9"}],
+        "INSTAGRAM_GET_USER_INFO": [{"website": "https://xbettereverydayx.gumroad.com"}],
     }
     s.update(over)
     return s
@@ -363,7 +390,8 @@ check("reel FB fails: IG ok, FB FAILED, one attempt", r["ok"] and r["stage"] == 
 ns, calls, uploads = load(reel_script(), now=at(23, 30), fake_reel=True)
 r = ns["publish"](EVENING, "evening", dry_run=True)
 check("reel dry run: links, no Instagram/Facebook writes", r["ok"] and r["stage"] == "dry_run_done" and r["video"]
-      and r["cover"] and [c[0] for c in calls] == ["INSTAGRAM_GET_IG_USER_MEDIA"] and len(uploads) == 2, r)
+      and r["cover"] and all(c[0] in ("INSTAGRAM_GET_IG_USER_MEDIA", "INSTAGRAM_GET_USER_INFO") for c in calls)
+      and len(uploads) == 2, r)
 
 # ---------------------------------------------------------------- the Reel itself (real rendering, no API)
 ns, _, _ = load()

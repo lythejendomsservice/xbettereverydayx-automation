@@ -60,8 +60,15 @@ never the same sentence on two slides.
 Themes: discipline, responsibility, time, ambition, consistency, procrastination, bad habits,
 accountability.""",
         "CAPTION_END": 'one natural engagement question about today',
-        "CTA_RULES": "Product promotion: none in midday posts. Never mention products, links or sales.",
-        "FB_NOTE": "Facebook gets the same text.",
+        "CTA_RULES": """Product promotion (Gumroad) - ONLY on Tuesday (weekday 2) and Friday (weekday 5):
+- Keep the carousel on discipline, consistency or daily standards.
+- Write the caption as usual, then end it with ONE soft, natural line pointing to the printable workbook
+  "The 30-Day Discipline Reset" (one hard thing a day for 30 days, no zero days), ending with "Link in bio."
+  Example tone (do not copy verbatim): "Want a plan for the next 30 days? The 30-Day Discipline Reset gives
+  you one hard thing a day. Link in bio."
+- Never a hard sell, never prices, never URLs, never more than one product line.
+On all other days: no product mention at all.""",
+        "FB_NOTE": 'Facebook gets the same text, with "Link in bio." turned into the Gumroad link by the code.',
     },
     "evening": {
         "SLOT_RULES": """EVENING = ONE original quote of 5-25 words that stands alone without explanation,

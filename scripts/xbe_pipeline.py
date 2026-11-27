@@ -45,8 +45,10 @@ FB_PAGE_ID = "1033703049835931"  # Page "XBetterEverydayx" - never post anywhere
 # Products that a caption may point to with "... Link in bio." - on Facebook that line gets the real link.
 PRODUCTS = {
     "circle audit": "https://xbettereverydayx.gumroad.com/l/wzidk",
+    "discipline reset": "https://xbettereverydayx.gumroad.com/l/discipline-reset",  # live 27/11-2026 (Dispatch)
 }
 GUMROAD_URL = PRODUCTS["circle audit"]
+STORE_URL = "https://xbettereverydayx.gumroad.com"  # the bio link should be the store, so every product is one tap away
 REPO_RAW = "https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/"
 ASSET_DIR = "/tmp/xbe_assets"
 ASSET_FILES = ["brand/x_mark.png", "brand/wordmark.png", "fonts/Montserrat-ExtraBold.ttf",
@@ -312,6 +314,43 @@ def fb_caption(slot, caption):
     return "\n".join(out)
 
 
+def ig_caption(caption, bio):
+    """Instagram: a '... Link in bio.' product line stays only when the bio link leads to that product or to the
+    store - otherwise the post would send people to the wrong place (seen 27/11-2026: the bio pointed to another
+    product). Returns (caption, dropped lines)."""
+    b = (bio or "").strip().rstrip("/").lower()
+    out, dropped = [], []
+    for ln in caption.split("\n"):
+        if ln.rstrip().endswith("Link in bio."):
+            url = next((u for name, u in PRODUCTS.items() if name in ln.lower()), None)
+            if not url or b not in (STORE_URL.lower(), url.rstrip("/").lower()):
+                dropped.append(ln.strip())
+                continue
+        out.append(ln)
+    text = "\n".join(out)
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    return text.strip(), dropped
+
+
+def _bio_link():
+    return (_call("INSTAGRAM_GET_USER_INFO", {"ig_user_id": "me", "fields": "website"}, IG_ACCOUNT).get("website") or "")
+
+
+def _instagram_caption(caption, out):
+    """The caption for Instagram after the bio-link check (only looked up when a product line is there)."""
+    if not any(ln.rstrip().endswith("Link in bio.") for ln in caption.split("\n")):
+        return caption
+    try:
+        text, dropped = ig_caption(caption, _bio_link())
+    except Exception as ex:  # noqa: BLE001
+        out["warnings"].append(f"bio link check failed ({ex}) - caption unchanged")
+        return caption
+    if dropped:
+        out["warnings"].append(f"bio link does not lead to the product - left out on Instagram: {dropped[0][:90]}")
+    return text
+
+
 def _fb_just_posted():
     now = _dt.datetime.now(_dt.timezone.utc)
     for p in _items(_call("FACEBOOK_GET_PAGE_POSTS", {"page_id": FB_PAGE_ID, "limit": 3}, FB_ACCOUNT)):
@@ -474,7 +513,7 @@ def _reel_continue(st, out, t0):
     return out
 
 
-def _publish_reel(content, slot, caption, out, dry_run, t0):
+def _publish_reel(content, slot, caption, out, dry_run, t0, ig_text=None):
     slide = content["slides"][0]
     out["stage"] = "video"
     shutil.rmtree(REEL_DIR, ignore_errors=True)
@@ -494,7 +533,7 @@ def _publish_reel(content, slot, caption, out, dry_run, t0):
 
     out["stage"] = "instagram"
     created = _call("INSTAGRAM_POST_IG_USER_MEDIA", {
-        "ig_user_id": IG_USER_ID, "media_type": "REELS", "caption": caption, "share_to_feed": True,
+        "ig_user_id": IG_USER_ID, "media_type": "REELS", "caption": ig_text or caption, "share_to_feed": True,
         "audio_name": REEL_AUDIO_NAME, "cover_url": cov["url"],
         "video_file": {"name": vid["name"], "mimetype": "video/mp4", "s3key": vid["s3key"]},
     }, IG_ACCOUNT)
@@ -553,8 +592,11 @@ def publish(content, slot, dry_run=False):
             return out
         caption = full_caption(content)  # noqa: F821
         out["slides"] = [s.get("lines") for s in res["slides"]]
+        ig_text = _instagram_caption(caption, out)
+        if ig_text != caption:
+            out["caption_instagram"] = ig_text
         if SLOTS[slot].get("reel"):
-            return _publish_reel(content, slot, caption, out, dry_run, t0)
+            return _publish_reel(content, slot, caption, out, dry_run, t0, ig_text)
 
         out["stage"] = "upload"
         up = [upload(p) for p in res["files"]]
@@ -564,7 +606,7 @@ def publish(content, slot, dry_run=False):
             return out
 
         out["stage"] = "instagram"
-        media_id, note = _publish_instagram(slot, caption, up, res["alt_texts"][0])
+        media_id, note = _publish_instagram(slot, ig_text, up, res["alt_texts"][0])
         if note:
             out["warnings"].append(note)
         out["ig_media_id"] = media_id
