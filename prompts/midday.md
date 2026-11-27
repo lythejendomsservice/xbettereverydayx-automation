@@ -15,10 +15,10 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "716e5c104cbae6ddbd8fc6d930c21ea4756d44c7"
+XBE_COMMIT = "5370b959004eaba30ae55d7b2cc2c5a1ec89563c"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_reel.py": "2e0143fdde5e09fff71f77dd03ef078226f0eb7d73e007910933069046f5546b",
-             "scripts/xbe_pipeline.py": "94bacb3b6fec2ecc7e26a45abe3d1d3b6a4944d3a890e26f64f1f67090263ed5"}
+             "scripts/xbe_pipeline.py": "de08c2f53de8c07cc041ba8003ee253faa1a0aa58abd05c4341b68ee65bd6ff1"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -76,7 +76,14 @@ one natural engagement question about today. No hashtags inside the caption.
 Hashtags: 5-10, niche and relevant to today's topic, always include #xbettereverydayx, vary them
 from day to day, no generic spam (#winner, #grindculture, #follow4follow...).
 
-Product promotion: none in midday posts. Never mention products, links or sales.
+Product promotion (Gumroad) - ONLY on Tuesday (weekday 2) and Friday (weekday 5):
+- Keep the carousel on discipline, consistency or daily standards.
+- Write the caption as usual, then end it with ONE soft, natural line pointing to the printable workbook
+  "The 30-Day Discipline Reset" (one hard thing a day for 30 days, no zero days), ending with "Link in bio."
+  Example tone (do not copy verbatim): "Want a plan for the next 30 days? The 30-Day Discipline Reset gives
+  you one hard thing a day. Link in bio."
+- Never a hard sell, never prices, never URLs, never more than one product line.
+On all other days: no product mention at all.
 
 Self-check before rendering - is it meaningful, original, scroll-stopping, relatable, clear,
 grammatically perfect English, on-brand, valuable? If not, rewrite.
@@ -84,10 +91,10 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "716e5c104cbae6ddbd8fc6d930c21ea4756d44c7"
+XBE_COMMIT = "5370b959004eaba30ae55d7b2cc2c5a1ec89563c"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_reel.py": "2e0143fdde5e09fff71f77dd03ef078226f0eb7d73e007910933069046f5546b",
-             "scripts/xbe_pipeline.py": "94bacb3b6fec2ecc7e26a45abe3d1d3b6a4944d3a890e26f64f1f67090263ed5"}
+             "scripts/xbe_pipeline.py": "de08c2f53de8c07cc041ba8003ee253faa1a0aa58abd05c4341b68ee65bd6ff1"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -103,7 +110,7 @@ print(json.dumps(r, indent=1))
 CONTENT format: {"type":"midday","slides":[{"text":"..."}...],"caption":"...","hashtags":[...]}
 (optional per slide "style":"sans"|"serif"; optional "theme":"light" at most once a week -
 black is the primary identity.) Instagram gets the caption + a blank line + the hashtags.
-Facebook gets the same text.
+Facebook gets the same text, with "Link in bio." turned into the Gumroad link by the code.
 
 Read r:
 - stage "qc": quality control rejected the text. Fix exactly what the errors say and run the cell

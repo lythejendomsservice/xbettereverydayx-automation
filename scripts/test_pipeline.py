@@ -498,6 +498,10 @@ for name, slot, cells in [("midday.md", "midday", 2), ("early.md", "early", 2), 
     lines_s, text_s = slot_lines(name)
     check(f"{name}: SLOT = \"{slot}\" in all {cells} cells, finish step only for the Reel",
           lines_s == [f'SLOT = "{slot}"'] * cells and ("finish(SLOT)" in text_s) == (cells == 3), lines_s)
+mid = open(os.path.join(ROOT, "prompts", "midday.md")).read()
+check("midday.md: Discipline Reset only on Tuesday and Friday, Facebook gets the link",
+      "The 30-Day Discipline Reset" in mid and "Tuesday (weekday 2) and Friday (weekday 5)" in mid
+      and 'turned into the Gumroad link' in mid)
 for name in ("early.md", "midday.md", "evening.md", "quote.md"):
     text_s = open(os.path.join(ROOT, "prompts", name)).read()
     check(f"{name}: pins the Reel module too", text_s.count('"scripts/xbe_reel.py"') == text_s.count("XBE_COMMIT = ") >= 2)

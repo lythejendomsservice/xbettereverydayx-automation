@@ -15,10 +15,10 @@ code cells below in COMPOSIO_REMOTE_WORKBENCH (state is kept between cells).
 ## 1. Load the pipeline and check whether to post (one cell, exactly as written)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "716e5c104cbae6ddbd8fc6d930c21ea4756d44c7"
+XBE_COMMIT = "5370b959004eaba30ae55d7b2cc2c5a1ec89563c"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_reel.py": "2e0143fdde5e09fff71f77dd03ef078226f0eb7d73e007910933069046f5546b",
-             "scripts/xbe_pipeline.py": "94bacb3b6fec2ecc7e26a45abe3d1d3b6a4944d3a890e26f64f1f67090263ed5"}
+             "scripts/xbe_pipeline.py": "de08c2f53de8c07cc041ba8003ee253faa1a0aa58abd05c4341b68ee65bd6ff1"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -96,10 +96,10 @@ grammatically perfect English, on-brand, valuable? If not, rewrite.
 ## 3. Publish (one cell)
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "716e5c104cbae6ddbd8fc6d930c21ea4756d44c7"
+XBE_COMMIT = "5370b959004eaba30ae55d7b2cc2c5a1ec89563c"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_reel.py": "2e0143fdde5e09fff71f77dd03ef078226f0eb7d73e007910933069046f5546b",
-             "scripts/xbe_pipeline.py": "94bacb3b6fec2ecc7e26a45abe3d1d3b6a4944d3a890e26f64f1f67090263ed5"}
+             "scripts/xbe_pipeline.py": "de08c2f53de8c07cc041ba8003ee253faa1a0aa58abd05c4341b68ee65bd6ff1"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
@@ -129,10 +129,10 @@ Read r:
   "xBetterEverydayx <slot>: the Reel is not finished after 4 tries (<stage>)" and STOP:
 ```python
 import hashlib, json, urllib.request
-XBE_COMMIT = "716e5c104cbae6ddbd8fc6d930c21ea4756d44c7"
+XBE_COMMIT = "5370b959004eaba30ae55d7b2cc2c5a1ec89563c"
 XBE_FILES = {"prompts/renderer_inline.py": "8699aa2d573c2858baaae63d94d22f9998f6bc262f9c279051e4dd07de1d72a8",
              "scripts/xbe_reel.py": "2e0143fdde5e09fff71f77dd03ef078226f0eb7d73e007910933069046f5546b",
-             "scripts/xbe_pipeline.py": "94bacb3b6fec2ecc7e26a45abe3d1d3b6a4944d3a890e26f64f1f67090263ed5"}
+             "scripts/xbe_pipeline.py": "de08c2f53de8c07cc041ba8003ee253faa1a0aa58abd05c4341b68ee65bd6ff1"}
 if globals().get("XBE_LOADED") != XBE_COMMIT:
     for _p, _h in XBE_FILES.items():
         _b = urllib.request.urlopen("https://raw.githubusercontent.com/lythejendomsservice/xbettereverydayx-automation/" + XBE_COMMIT + "/" + _p, timeout=60).read()
